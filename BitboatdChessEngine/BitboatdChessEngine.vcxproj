@@ -127,7 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="BitboatdChessEngine.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="ChessEngine.cpp" />
     <ClCompile Include="Move.cpp" />
   </ItemGroup>
