@@ -7,10 +7,10 @@ private:
     uint16_t moveData;  // Bit-packed move representation
 
 public:
-    // Use explicitly-sized enums to ensure compact storage
-    enum SpecialMove : uint8_t {
+    // Explicitly-sized enums to ensure compact storage
+    enum MoveType : uint8_t {
         NORMAL = 0,
-        CASTLING = 1,
+        CASTLE = 1,
         EN_PASSANT = 2,
         PROMOTION = 3
     };
@@ -23,20 +23,24 @@ public:
     };
 
     // Constructor
-    Move(int from, int to, SpecialMove specialMove = NORMAL, PromotionPiece promoPiece = KNIGHT) {
+    Move(const int from, const int to, const MoveType specialMove = NORMAL, const PromotionPiece promoPiece = KNIGHT) {
         moveData = (from & 0x3F) |           // 6 bits for 'from' square
             ((to & 0x3F) << 6) |             // 6 bits for 'to' square
             ((specialMove & 0x3) << 12) |    // 2 bits for special move type
             ((promoPiece & 0x3) << 14);      // 2 bits for promotion piece
     }
 
-    // Inline getters using bitwise operations
+    // The position from which the piece moves
     inline int from() const { return moveData & 0x3F; }
+    // The position the piece moves to
     inline int to() const { return (moveData >> 6) & 0x3F; }
-    inline SpecialMove specialMove() const { return static_cast<SpecialMove>((moveData >> 12) & 0x3); }
+    // The type of the move (normal, castle, en passant, promotion)
+    inline MoveType moveType() const { return static_cast<MoveType>((moveData >> 12) & 0x3); }
+    // The type of piece to promote to (in case of pawn promotion)
     inline PromotionPiece promotionPiece() const { return static_cast<PromotionPiece>((moveData >> 14) & 0x3); }
 
-    inline uint16_t raw() const { return moveData; } // Get raw move data
+    // Get raw move data
+    inline uint16_t raw() const { return moveData; }
 
     std::string toString() const;
 };
