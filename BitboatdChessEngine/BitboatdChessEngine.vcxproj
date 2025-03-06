@@ -128,6 +128,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BitboatdChessEngine.cpp" />
+    <ClCompile Include="ChessEngine.cpp" />
+    <ClCompile Include="Move.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ChessEngine.h" />
+    <ClInclude Include="Move.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
