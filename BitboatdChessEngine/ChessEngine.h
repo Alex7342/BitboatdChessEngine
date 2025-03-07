@@ -17,8 +17,7 @@ public:
     std::string bitboardToString(const uint64_t bitboard) const;
 
 private:
-    std::array<uint64_t, 6> whitePieces; // Bitboards for white pieces
-    std::array<uint64_t, 6> blackPieces; // Bitboards for black pieces
+    uint64_t pieces[2][6]; // Bitboards for all types of pieces of each color (first index for color, second index for piece type)
 
     void initializeBitboards(); // Initialize bitboards with the classic chess setup
 };
