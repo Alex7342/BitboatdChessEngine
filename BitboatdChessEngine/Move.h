@@ -23,10 +23,10 @@ public:
     };
 
     // Constructor
-    Move(const int from, const int to, const MoveType specialMove = NORMAL, const PromotionPiece promoPiece = KNIGHT) {
+    Move(const int from, const int to, const MoveType moveType = NORMAL, const PromotionPiece promoPiece = KNIGHT) {
         moveData = (from & 0x3F) |           // 6 bits for 'from' square
             ((to & 0x3F) << 6) |             // 6 bits for 'to' square
-            ((specialMove & 0x3) << 12) |    // 2 bits for special move type
+            ((moveType & 0x3) << 12) |    // 2 bits for special move type
             ((promoPiece & 0x3) << 14);      // 2 bits for promotion piece
     }
 
