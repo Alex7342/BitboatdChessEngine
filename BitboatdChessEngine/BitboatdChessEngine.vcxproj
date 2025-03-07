@@ -127,11 +127,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BitboardGenerator.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ChessEngine.cpp" />
     <ClCompile Include="Move.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BitboardGenerator.h" />
     <ClInclude Include="ChessEngine.h" />
     <ClInclude Include="Move.h" />
   </ItemGroup>
