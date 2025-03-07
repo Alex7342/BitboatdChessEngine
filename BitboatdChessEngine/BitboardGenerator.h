@@ -39,4 +39,7 @@ public:
 
 	// Generate a bitboard containing knight moves
 	static uint64_t generateKnightMoveset(const uint64_t knightBitboard);
+
+	// Generate a bitboard containing king moves
+	static uint64_t generateKingMoveset(const uint64_t kingBitboard);
 };

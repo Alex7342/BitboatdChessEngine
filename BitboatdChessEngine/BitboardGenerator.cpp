@@ -42,3 +42,18 @@ uint64_t BitboardGenerator::generateKnightMoveset(const uint64_t knightBitboard)
 
 	return movePattern;
 }
+
+uint64_t BitboardGenerator::generateKingMoveset(const uint64_t kingBitboard)
+{
+	uint64_t movePattern =
+		north(west(kingBitboard)) |
+		north(kingBitboard) |
+		north(east(kingBitboard)) |
+		east(kingBitboard) |
+		south(east(kingBitboard)) |
+		south(kingBitboard) |
+		south(west(kingBitboard)) |
+		west(kingBitboard);
+
+	return movePattern;
+}
