@@ -45,7 +45,11 @@ public:
 
 	// Generate a bitboard containing rook occupancy bits
 	static uint64_t generateRookOccupancyMask(const uint64_t rookBitboard);
+	// Generate a bitboard containing the rook moveset for the given square and occupancy set
+	static uint64_t generateRookMoveset(const int square, const uint64_t occupancySet);
 
 	// Generate a bitboard containing bishop occupancy bits
 	static uint64_t generateBishopOccupancyMask(const uint64_t bishopBitboard);
+	// Generate a bitboard containing the bishop moveset for the given square and occupancy set
+	static uint64_t generateBishopMoveset(const int square, const uint64_t occupancySet);
 };

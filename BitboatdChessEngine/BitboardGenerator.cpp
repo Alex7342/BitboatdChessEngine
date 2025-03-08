@@ -83,6 +83,68 @@ uint64_t BitboardGenerator::generateRookOccupancyMask(const uint64_t rookBitboar
 	return occupancyMask;
 }
 
+uint64_t BitboardGenerator::generateRookMoveset(const int square, const uint64_t occupancySet)
+{
+	uint64_t attackSet = 0;
+
+	// Bitboard containing the rook
+	const uint64_t rook = 1ULL << square;
+
+	// Go north as much as possible
+	uint64_t north = BitboardGenerator::north(rook);
+	while (north)
+	{
+		attackSet |= north;
+		
+		// Stop at the first set bit in the occupancy set
+		if (north & occupancySet)
+			break;
+
+		north = BitboardGenerator::north(north);
+	}
+
+	// Go south as much as possible
+	uint64_t south = BitboardGenerator::south(rook);
+	while (south)
+	{
+		attackSet |= south;
+
+		// Stop at the first set bit in the occupancy set
+		if (south & occupancySet)
+			break;
+
+		south = BitboardGenerator::south(south);
+	}
+
+	// Go east as much as possible
+	uint64_t east = BitboardGenerator::east(rook);
+	while (east)
+	{
+		attackSet |= east;
+
+		// Stop at the first set bit in the occupancy set
+		if (east & occupancySet)
+			break;
+
+		east = BitboardGenerator::east(east);
+	}
+
+	// Go west as much as possible
+	uint64_t west = BitboardGenerator::west(rook);
+	while (west)
+	{
+		attackSet |= west;
+
+		// Stop at the first set bit in the occupancy set
+		if (west & occupancySet)
+			break;
+
+		west = BitboardGenerator::west(west);
+	}
+
+	return attackSet;
+}
+
 uint64_t BitboardGenerator::generateBishopOccupancyMask(const uint64_t bishopBitboard)
 {
 	uint64_t occupancyMask = 0;
@@ -106,4 +168,66 @@ uint64_t BitboardGenerator::generateBishopOccupancyMask(const uint64_t bishopBit
 	}
 
 	return occupancyMask;
+}
+
+uint64_t BitboardGenerator::generateBishopMoveset(const int square, const uint64_t occupancySet)
+{
+	uint64_t attackSet = 0;
+
+	// Bitboard containing the rook
+	const uint64_t bishop = 1ULL << square;
+
+	// Go north-east as much as possible
+	uint64_t northEast = BitboardGenerator::north(east(bishop));
+	while (northEast)
+	{
+		attackSet |= northEast;
+
+		// Stop at the first set bit in the occupancy set
+		if (northEast & occupancySet)
+			break;
+
+		northEast = BitboardGenerator::north(east(northEast));
+	}
+
+	// Go north-west as much as possible
+	uint64_t northWest = BitboardGenerator::north(west(bishop));
+	while (northWest)
+	{
+		attackSet |= northWest;
+
+		// Stop at the first set bit in the occupancy set
+		if (northWest & occupancySet)
+			break;
+
+		northWest = BitboardGenerator::north(west(northWest));
+	}
+
+	// Go south-east as much as possible
+	uint64_t southEast = BitboardGenerator::south(east(bishop));
+	while (southEast)
+	{
+		attackSet |= southEast;
+
+		// Stop at the first set bit in the occupancy set
+		if (southEast & occupancySet)
+			break;
+
+		southEast = BitboardGenerator::south(east(southEast));
+	}
+
+	// Go south-west as much as possible
+	uint64_t southWest = BitboardGenerator::south(west(bishop));
+	while (southWest)
+	{
+		attackSet |= southWest;
+
+		// Stop at the first set bit in the occupancy set
+		if (southWest & occupancySet)
+			break;
+
+		southWest = BitboardGenerator::south(west(southWest));
+	}
+
+	return attackSet;
 }
