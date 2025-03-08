@@ -42,4 +42,10 @@ public:
 
 	// Generate a bitboard containing king moves
 	static uint64_t generateKingMoveset(const uint64_t kingBitboard);
+
+	// Generate a bitboard containing rook occupancy bits
+	static uint64_t generateRookOccupancyMask(const uint64_t rookBitboard);
+
+	// Generate a bitboard containing bishop occupancy bits
+	static uint64_t generateBishopOccupancyMask(const uint64_t bishopBitboard);
 };
