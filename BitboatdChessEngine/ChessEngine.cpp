@@ -20,6 +20,16 @@ void ChessEngine::initializeBitboards() {
     pieces[BLACK][ROOK] = 0x8100000000000000ULL;
     pieces[BLACK][QUEEN] = 0x0800000000000000ULL;
     pieces[BLACK][KING] = 0x1000000000000000ULL;
+
+    initializePawnMovesetBitboards();
+    initializeKnightMovesetBitboards();
+    initializeKingMovesetBitboards();
+    
+    initializeRookOccupancyMasks();
+    initializeRookMovesetBitboards();
+
+    initializeBishopOccupancyMasks();
+    initializeBishopMovesetBitboards();
 }
 
 void ChessEngine::initializePawnMovesetBitboards()
