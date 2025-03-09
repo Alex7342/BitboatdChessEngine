@@ -48,6 +48,63 @@ void ChessEngine::initializeKingMovesetBitboards()
         kingMovement[square] = BitboardGenerator::generateKingMoveset(1ULL << square);
 }
 
+void ChessEngine::initializeRookOccupancyMasks()
+{
+    for (int square = 0; square < 64; square++)
+        rookOccupancyMask[square] = BitboardGenerator::generateRookOccupancyMask(1ULL << square);
+}
+
+void ChessEngine::initializeRookMovesetBitboards()
+{
+    int rookMovementIndex = 0;
+
+    for (int square = 0; square < 64; square++)
+    {
+        rookSquareOffset[square] = rookMovementIndex;
+
+        uint64_t occupancyMask = BitboardGenerator::generateRookOccupancyMask(1ULL << square);
+        uint64_t subset = 0;
+
+        // Carry ripple subset enumeration
+        do
+        {
+            // PEXT operation for hashing occupancy set
+            rookMovement[rookSquareOffset[square] + _pext_u64(subset, occupancyMask)] = BitboardGenerator::generateRookMoveset(square, subset);
+            rookMovementIndex++;
+            
+            subset = (subset - occupancyMask) & occupancyMask;
+        } while (subset);
+    }
+}
+
+void ChessEngine::initializeBishopOccupancyMasks()
+{
+    for (int square = 0; square < 64; square++)
+        bishopOccupancyMask[square] = BitboardGenerator::generateBishopOccupancyMask(1ULL << square);
+}
+
+void ChessEngine::initializeBishopMovesetBitboards()
+{
+    int bishopMovementIndex = 0;
+
+    for (int square = 0; square < 64; square++)
+    {
+        bishopSquareOffset[square] = bishopMovementIndex;
+
+        uint64_t occupancyMask = BitboardGenerator::generateBishopOccupancyMask(1ULL << square);
+        uint64_t subset = 0;
+        
+        do
+        {
+            // PEXT operation for hashing occupancy set
+            bishopMovement[bishopSquareOffset[square] + _pext_u64(subset, occupancyMask)] = BitboardGenerator::generateBishopMoveset(square, subset);
+            bishopMovementIndex++;
+
+            subset = (subset - occupancyMask) & occupancyMask;
+        } while (subset);
+    }
+}
+
 std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
     std::string board = "";
     for (int rank = 7; rank >= 0; --rank) {
