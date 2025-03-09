@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
-#include <array>
+#include "BitboardGenerator.h"
 
 class ChessEngine {
 public:
@@ -18,6 +18,15 @@ public:
 
 private:
     uint64_t pieces[2][6]; // Bitboards for all types of pieces of each color (first index for color, second index for piece type)
+    
+    uint64_t pawnPushes[2][64], pawnAttacks[2][64]; // Bitboards for pawn movement
+    uint64_t knightMovement[64]; // Bitboards for knight movement
+    uint64_t kingMovement[64]; // Bitboards for king movement
+    uint64_t slidingPiecesMovement[]; // Bitboards for sliding pieces movement
 
     void initializeBitboards(); // Initialize bitboards with the classic chess setup
+
+    void initializePawnMovesetBitboards(); // Initialize pawn push and attack bitboards
+    void initializeKnightMovesetBitboards(); // Initialize knight moveset bitboards
+    void initializeKingMovesetBitboards(); // Initialize king moveset bitboards
 };

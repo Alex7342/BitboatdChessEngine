@@ -22,6 +22,32 @@ void ChessEngine::initializeBitboards() {
     pieces[BLACK][KING] = 0x1000000000000000ULL;
 }
 
+void ChessEngine::initializePawnMovesetBitboards()
+{
+    for (int square = 0; square < 64; square++)
+    {
+        // Generate pushes
+        pawnPushes[WHITE][square] = BitboardGenerator::generatePawnPush(1ULL << square, WHITE);
+        pawnPushes[BLACK][square] = BitboardGenerator::generatePawnPush(1ULL << square, BLACK);
+
+        // Generate attacks
+        pawnAttacks[WHITE][square] = BitboardGenerator::generatePawnAttack(1ULL << square, WHITE);
+        pawnAttacks[BLACK][square] = BitboardGenerator::generatePawnAttack(1ULL << square, BLACK);
+    }
+}
+
+void ChessEngine::initializeKnightMovesetBitboards()
+{
+    for (int square = 0; square < 64; square++)
+        knightMovement[square] = BitboardGenerator::generateKnightMoveset(1ULL << square);
+}
+
+void ChessEngine::initializeKingMovesetBitboards()
+{
+    for (int square = 0; square < 64; square++)
+        kingMovement[square] = BitboardGenerator::generateKingMoveset(1ULL << square);
+}
+
 std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
     std::string board = "";
     for (int rank = 7; rank >= 0; --rank) {
