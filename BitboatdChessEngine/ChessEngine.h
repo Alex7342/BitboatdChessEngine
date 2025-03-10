@@ -3,6 +3,7 @@
 #include <string>
 #include <immintrin.h>
 #include "BitboardGenerator.h"
+#include "Move.h"
 
 class ChessEngine {
 public:
@@ -16,6 +17,8 @@ public:
 
     ChessEngine();
     std::string bitboardToString(const uint64_t bitboard) const;
+
+    MoveList getMoves(const Color color) const;
 
 private:
     uint64_t pieces[2][6]; // Bitboards for all types of pieces of each color (first index for color, second index for piece type)
@@ -43,4 +46,6 @@ private:
 
     void initializeBishopOccupancyMasks(); // Initialize bishop occupancy masks
     void initializeBishopMovesetBitboards(); // Initialize bishop moveset bitboards
+
+    void addPawnMoves(const Color color, MoveList& moveList, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the pawn moves of the given color to the move list
 };

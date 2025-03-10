@@ -115,6 +115,75 @@ void ChessEngine::initializeBishopMovesetBitboards()
     }
 }
 
+void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint64_t ownPieces, const uint64_t enemyPieces) const
+{
+    uint64_t pawns = pieces[color][PAWN];
+    uint64_t doublePushRank = color == Color::WHITE ? BitboardGenerator::RANK_2 : BitboardGenerator::RANK_7;
+    uint64_t promotionRank = color == Color::WHITE ? BitboardGenerator::RANK_7 : BitboardGenerator::RANK_2;
+
+    while (pawns)
+    {
+        // Get the LSB
+        int square = _tzcnt_u64(pawns);
+
+        // Bitboard containing the currently processed pawn
+        uint64_t singlePawnBitboard = 1ULL << square;
+
+        // Add pawn pushes
+        uint64_t allPieces = ownPieces | enemyPieces;
+        if (!(pawnPushes[color][square] & allPieces))
+        {
+            int pushSquare = _tzcnt_u64(pawnPushes[color][square]);
+
+            // Check for promotion possibility
+            if (singlePawnBitboard & promotionRank)
+            {
+                // Add all possible promotions
+                moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::QUEEN));
+                moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::KNIGHT));
+                moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::ROOK));
+                moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::BISHOP));
+            }
+            else
+            {
+                // Add a normal pawn push
+                moveList.add(Move(square, pushSquare));
+            }
+
+            // Check for double push possibility
+            if (singlePawnBitboard & doublePushRank)
+            {
+                if (!(pawnPushes[color][pushSquare] & allPieces))
+                    moveList.add(Move(square, _tzcnt_u64(pawnPushes[color][pushSquare])));
+            }
+        }
+
+        // Add pawn attacks
+        uint64_t successfulAttacks = pawnAttacks[color][square] & (enemyPieces & ~pieces[!color][KING]); // The enemy king can not be captured
+        while (successfulAttacks)
+        {
+            int attackedSquare = _tzcnt_u64(successfulAttacks);
+            if (singlePawnBitboard & promotionRank)
+            {
+                // Add all possible promotions
+                moveList.add(Move(square, attackedSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::QUEEN));
+                moveList.add(Move(square, attackedSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::KNIGHT));
+                moveList.add(Move(square, attackedSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::ROOK));
+                moveList.add(Move(square, attackedSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::BISHOP));
+            }
+            else
+            {
+                // Add a normal pawn attack
+                moveList.add(Move(square, attackedSquare));
+            }
+            successfulAttacks &= successfulAttacks - 1;
+        }
+
+        // Remove the LSB
+        pawns &= pawns - 1;
+    }
+}
+
 std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
     std::string board = "";
     for (int rank = 7; rank >= 0; --rank) {
@@ -125,4 +194,17 @@ std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
         board += "\n";
     }
     return board;
+}
+
+MoveList ChessEngine::getMoves(const Color color) const
+{
+    MoveList moveList;
+
+    uint64_t ownPieces = pieces[color][PAWN] | pieces[color][KNIGHT] | pieces[color][BISHOP] | pieces[color][ROOK] | pieces[color][QUEEN] | pieces[color][KING];
+    uint64_t enemyPieces = pieces[!color][PAWN] | pieces[!color][KNIGHT] | pieces[!color][BISHOP] | pieces[!color][ROOK] | pieces[!color][QUEEN] | pieces[!color][KING];
+
+
+    addPawnMoves(color, moveList, ownPieces, enemyPieces);
+
+    return moveList;
 }
