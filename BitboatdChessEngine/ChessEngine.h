@@ -48,4 +48,6 @@ private:
     void initializeBishopMovesetBitboards(); // Initialize bishop moveset bitboards
 
     void addPawnMoves(const Color color, MoveList& moveList, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the pawn moves of the given color to the move list
+    void addKnightMoves(const Color color, MoveList& moveList, const uint64_t ownPieces) const; // Add all the knight moves of the given color to the move list
+    void addKingMoves(const Color color, MoveList& movelist, const uint64_t ownPieces) const; // Add all the king moves of the given color to the move list
 };

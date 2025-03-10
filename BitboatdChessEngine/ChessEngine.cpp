@@ -184,6 +184,54 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint
     }
 }
 
+void ChessEngine::addKnightMoves(const Color color, MoveList& moveList, const uint64_t ownPieces) const
+{
+    uint64_t knights = pieces[color][KNIGHT];
+
+    while (knights)
+    {
+        // Get the LSB
+        int square = _tzcnt_u64(knights);
+
+        // Add knight moves (the enemy king can not be captured)
+        uint64_t possibleMoves = knightMovement[square] & ~ownPieces & ~pieces[!color][KING];
+        while (possibleMoves)
+        {
+            int attackedSquare = _tzcnt_u64(possibleMoves);
+            moveList.add(Move(square, attackedSquare));
+            possibleMoves &= possibleMoves - 1;
+        }
+
+        // Remove the LSB
+        knights &= knights - 1;
+    }
+}
+
+void ChessEngine::addKingMoves(const Color color, MoveList& movelist, const uint64_t ownPieces) const
+{
+    uint64_t king = pieces[color][KING];
+
+    while (king)
+    {
+        // Get the LSB
+        int square = _tzcnt_u64(king);
+
+        // Add king moves (enemy king can not be captured)
+        uint64_t possibleMoves = kingMovement[square] & ~ownPieces & ~pieces[!color][king];
+        while (possibleMoves)
+        {
+            int attackedSquare = _tzcnt_u64(possibleMoves);
+            movelist.add(Move(square, attackedSquare));
+            possibleMoves &= possibleMoves - 1;
+        }
+
+        // TODO Implement castling
+
+        // Remove the LSB
+        king &= king - 1;
+    }
+}
+
 std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
     std::string board = "";
     for (int rank = 7; rank >= 0; --rank) {
@@ -203,8 +251,9 @@ MoveList ChessEngine::getMoves(const Color color) const
     uint64_t ownPieces = pieces[color][PAWN] | pieces[color][KNIGHT] | pieces[color][BISHOP] | pieces[color][ROOK] | pieces[color][QUEEN] | pieces[color][KING];
     uint64_t enemyPieces = pieces[!color][PAWN] | pieces[!color][KNIGHT] | pieces[!color][BISHOP] | pieces[!color][ROOK] | pieces[!color][QUEEN] | pieces[!color][KING];
 
-
     addPawnMoves(color, moveList, ownPieces, enemyPieces);
+    addKnightMoves(color, moveList, ownPieces);
+    addKingMoves(color, moveList, ownPieces);
 
     return moveList;
 }
