@@ -217,7 +217,7 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist, const uint
         int square = _tzcnt_u64(king);
 
         // Add king moves (enemy king can not be captured)
-        uint64_t possibleMoves = kingMovement[square] & ~ownPieces & ~pieces[!color][king];
+        uint64_t possibleMoves = kingMovement[square] & ~ownPieces & ~pieces[!color][KING];
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -229,6 +229,85 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist, const uint
 
         // Remove the LSB
         king &= king - 1;
+    }
+}
+
+void ChessEngine::addRookMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const
+{
+    uint64_t rooks = pieces[color][ROOK];
+    uint64_t allPieces = ownPieces | enemyPieces;
+
+    while (rooks)
+    {
+        // Get the LSB
+        int square = _tzcnt_u64(rooks);
+
+        // Get the rook moves from the pre-generated movement bitboards (use PEXT to hash the current board)
+        uint64_t possibleMoves = rookMovement[rookSquareOffset[square] + _pext_u64(allPieces & rookOccupancyMask[square], rookOccupancyMask[square])];
+        possibleMoves &= ~ownPieces; // Remove the pieces of the same color from the attack set
+        while (possibleMoves)
+        {
+            int attackedSquare = _tzcnt_u64(possibleMoves);
+            movelist.add(Move(square, attackedSquare));
+            possibleMoves &= possibleMoves - 1;
+        }
+
+        // Remove the LSB
+        rooks &= rooks - 1;
+    }
+}
+
+void ChessEngine::addBishopMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const
+{
+    uint64_t bishops = pieces[color][BISHOP];
+    uint64_t allPieces = ownPieces | enemyPieces;
+
+    while (bishops)
+    {
+        // Get the LSB
+        int square = _tzcnt_u64(bishops);
+
+        // Get the bishop moves from the pre-generated movement bitboards (use PEXT to hash the current board)
+        uint64_t possibleMoves = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPieces & bishopOccupancyMask[square], bishopOccupancyMask[square])];
+        possibleMoves &= ~ownPieces; // Remove the pieces of the same color from the attack set
+        while (possibleMoves)
+        {
+            int attackedSquare = _tzcnt_u64(possibleMoves);
+            movelist.add(Move(square, attackedSquare));
+            possibleMoves &= possibleMoves - 1;
+        }
+
+        // Remove the LSB
+        bishops &= bishops - 1;
+    }
+}
+
+void ChessEngine::addQueenMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const
+{
+    uint64_t queens = pieces[color][QUEEN];
+    uint64_t allPieces = ownPieces | enemyPieces;
+
+    while (queens)
+    {
+        // Get the LSB
+        int square = _tzcnt_u64(queens);
+
+        // Get the rook moves from the pre-generated movement bitboards (use PEXT to hash the current board)
+        uint64_t possibleRookMoves = rookMovement[rookSquareOffset[square] + _pext_u64(allPieces & rookOccupancyMask[square], rookOccupancyMask[square])];
+        // Get the bishop moves from the pre-generated movement bitboards (use PEXT to hash the current board)
+        uint64_t possibleBishopMoves = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPieces & bishopOccupancyMask[square], bishopOccupancyMask[square])];
+
+        // Combine the rook and bishop moves and remove own pieces from attack set
+        uint64_t possibleMoves = (possibleRookMoves | possibleBishopMoves) & ~ownPieces;
+        while (possibleMoves)
+        {
+            int attackedSquare = _tzcnt_u64(possibleMoves);
+            movelist.add(Move(square, attackedSquare));
+            possibleMoves &= possibleMoves - 1;
+        }
+
+        // Remove the LSB
+        queens &= queens - 1;
     }
 }
 
@@ -254,6 +333,9 @@ MoveList ChessEngine::getMoves(const Color color) const
     addPawnMoves(color, moveList, ownPieces, enemyPieces);
     addKnightMoves(color, moveList, ownPieces);
     addKingMoves(color, moveList, ownPieces);
+    addRookMoves(color, moveList, ownPieces, enemyPieces);
+    addBishopMoves(color, moveList, ownPieces, enemyPieces);
+    addQueenMoves(color, moveList, ownPieces, enemyPieces);
 
     return moveList;
 }
