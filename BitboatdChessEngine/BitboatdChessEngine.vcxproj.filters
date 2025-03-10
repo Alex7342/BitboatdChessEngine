@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="BitboatdChessEngine.cpp">
+    <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ChessEngine.cpp">
@@ -24,12 +24,18 @@
     <ClCompile Include="Move.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="BitboardGenerator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ChessEngine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Move.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="BitboardGenerator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
