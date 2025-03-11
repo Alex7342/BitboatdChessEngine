@@ -1,9 +1,11 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <stack>
 #include <immintrin.h>
 #include "BitboardGenerator.h"
 #include "Move.h"
+#include "UndoHelper.h"
 
 class ChessEngine {
 public:
@@ -16,6 +18,9 @@ public:
     };
 
     ChessEngine();
+
+    uint64_t getAllPieces() const;
+
     std::string bitboardToString(const uint64_t bitboard) const;
 
     MoveList getMoves(const Color color) const;
@@ -55,4 +60,6 @@ private:
     void addRookMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the rook moves of the given color to the move list
     void addBishopMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the bishop moves of the given color to the move list
     void addQueenMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the queen moves of the given color to the move list
+
+    std::stack<UndoHelper> undoStack; // Stack information about every move (for undo purposes)
 };

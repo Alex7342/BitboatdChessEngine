@@ -5,6 +5,17 @@ ChessEngine::ChessEngine() {
     initializeBitboards();
 }
 
+uint64_t ChessEngine::getAllPieces() const
+{
+    uint64_t result = 0;
+
+    for (int color = 0; color < 2; color++)
+        for (int type = 0; type < 6; type++)
+            result |= pieces[color][type];
+
+    return result;
+}
+
 void ChessEngine::initializeBitboards() {
     // Standard chess starting position for each piece type
     pieces[WHITE][PAWN] = 0x000000000000FF00ULL;
@@ -347,20 +358,23 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
     Move::MoveType moveType = move.moveType();
 
     int movingPieceType = 0;
-    while (movingPieceType != PieceType::NONE && !(pieces[colorToMove][movingPieceType] & toSquareMask))
+    while (movingPieceType != PieceType::NONE && !(pieces[colorToMove][movingPieceType] & fromSquareMask))
         movingPieceType++;
 
     int capturedPieceType = 0;
-    while (capturedPieceType != PieceType::NONE && !(pieces[!colorToMove][capturedPieceType] & fromSquareMask))
+    while (capturedPieceType != PieceType::NONE && !(pieces[!colorToMove][capturedPieceType] & toSquareMask))
         capturedPieceType++;
 
     if (moveType == Move::MoveType::NORMAL)
     {
+        std::cout << "COX: " << movingPieceType << "\n";
         pieces[colorToMove][movingPieceType] ^= fromSquareMask;
         pieces[colorToMove][movingPieceType] ^= toSquareMask;
 
         if (pieces[!colorToMove][capturedPieceType] != PieceType::NONE)
             pieces[colorToMove][capturedPieceType] ^= toSquareMask;
+
+        undoStack.push(UndoHelper(move.to(), move.from(), moveType, capturedPieceType));
 
         return;
     }
