@@ -118,6 +118,7 @@ void ChessEngine::initializeBishopMovesetBitboards()
 void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint64_t ownPieces, const uint64_t enemyPieces) const
 {
     uint64_t pawns = pieces[color][PAWN];
+    uint64_t allPieces = ownPieces | enemyPieces;
     uint64_t doublePushRank = color == Color::WHITE ? BitboardGenerator::RANK_2 : BitboardGenerator::RANK_7;
     uint64_t promotionRank = color == Color::WHITE ? BitboardGenerator::RANK_7 : BitboardGenerator::RANK_2;
 
@@ -130,7 +131,6 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint
         uint64_t singlePawnBitboard = 1ULL << square;
 
         // Add pawn pushes
-        uint64_t allPieces = ownPieces | enemyPieces;
         if (!(pawnPushes[color][square] & allPieces))
         {
             int pushSquare = _tzcnt_u64(pawnPushes[color][square]);
@@ -338,4 +338,32 @@ MoveList ChessEngine::getMoves(const Color color) const
     addQueenMoves(color, moveList, ownPieces, enemyPieces);
 
     return moveList;
+}
+
+void ChessEngine::makeMove(const Move move, const Color colorToMove)
+{
+    uint64_t toSquareMask = 1ULL << move.to();
+    uint64_t fromSquareMask = 1ULL << move.from();
+    Move::MoveType moveType = move.moveType();
+
+    int movingPieceType = 0;
+    while (movingPieceType != PieceType::NONE && !(pieces[colorToMove][movingPieceType] & toSquareMask))
+        movingPieceType++;
+
+    int capturedPieceType = 0;
+    while (capturedPieceType != PieceType::NONE && !(pieces[!colorToMove][capturedPieceType] & fromSquareMask))
+        capturedPieceType++;
+
+    if (moveType == Move::MoveType::NORMAL)
+    {
+        pieces[colorToMove][movingPieceType] ^= fromSquareMask;
+        pieces[colorToMove][movingPieceType] ^= toSquareMask;
+
+        if (pieces[!colorToMove][capturedPieceType] != PieceType::NONE)
+            pieces[colorToMove][capturedPieceType] ^= toSquareMask;
+
+        return;
+    }
+
+    // TODO Implement special move handling
 }
