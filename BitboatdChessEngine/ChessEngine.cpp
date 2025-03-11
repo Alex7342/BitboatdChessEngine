@@ -372,9 +372,37 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         pieces[colorToMove][movingPieceType] ^= toSquareMask;
 
         if (pieces[!colorToMove][capturedPieceType] != PieceType::NONE)
-            pieces[colorToMove][capturedPieceType] ^= toSquareMask;
+            pieces[!colorToMove][capturedPieceType] ^= toSquareMask;
 
-        undoStack.push(UndoHelper(move.to(), move.from(), moveType, capturedPieceType));
+        undoStack.push(UndoHelper(move.from(), move.to(), moveType, capturedPieceType));
+
+        return;
+    }
+
+    // TODO Implement special move handling
+}
+
+void ChessEngine::undoMove(const Color colorThatMoved)
+{
+    UndoHelper undoHelper = undoStack.top();
+    undoStack.pop();
+
+    uint64_t toSquareMask = 1ULL << undoHelper.to();
+    uint64_t fromSquareMask = 1ULL << undoHelper.from();
+    Move::MoveType moveType = undoHelper.moveType();
+
+    int movingPieceType = 0;
+    while (movingPieceType != PieceType::NONE && !(pieces[colorThatMoved][movingPieceType] & toSquareMask))
+        movingPieceType++;
+
+    if (moveType == Move::MoveType::NORMAL)
+    {
+        pieces[colorThatMoved][movingPieceType] ^= toSquareMask;
+        pieces[colorThatMoved][movingPieceType] ^= fromSquareMask;
+
+        int capturedPieceType = undoHelper.capturedPieceType();
+        if (capturedPieceType != PieceType::NONE)
+            pieces[!colorThatMoved][capturedPieceType] ^= toSquareMask;
 
         return;
     }
