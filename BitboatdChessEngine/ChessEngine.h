@@ -29,9 +29,9 @@ public:
     void undoMove(const Color colorThatMoved);
 
     unsigned long long perft(const int depth, const Color colorToMove);
-    PieceType squarePieceType[64]; // Array that stores the piece type of each square
-private:
 
+private:
+    PieceType squarePieceType[64]; // Array that stores the piece type of each square
 
     uint64_t pieces[2][6]; // Bitboards for all types of pieces of each color (first index for color, second index for piece type)
     
