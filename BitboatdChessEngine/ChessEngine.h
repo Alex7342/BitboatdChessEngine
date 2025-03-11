@@ -28,6 +28,8 @@ public:
     void makeMove(const Move move, const Color colorToMove);
     void undoMove(const Color colorThatMoved);
 
+    unsigned long long perft(const int depth, const Color colorToMove);
+
 private:
     uint64_t pieces[2][6]; // Bitboards for all types of pieces of each color (first index for color, second index for piece type)
     

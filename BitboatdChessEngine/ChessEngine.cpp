@@ -419,3 +419,25 @@ void ChessEngine::undoMove(const Color colorThatMoved)
 
     // TODO Implement special move handling
 }
+
+unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
+{
+    if (depth == 0)
+        return 1;
+
+    MoveList movelist = getMoves(colorToMove);
+
+    if (depth == 1)
+        return movelist.numberOfMoves;
+    
+    unsigned long long result = 0;
+
+    for (int i = 0; i < movelist.numberOfMoves; i++)
+    {
+        makeMove(movelist.moves[i], colorToMove);
+        result += perft(depth - 1, static_cast<Color>(1 -colorToMove));
+        undoMove(colorToMove);
+    }
+
+    return result;
+}
