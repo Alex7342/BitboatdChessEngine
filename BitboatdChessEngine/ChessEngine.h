@@ -34,6 +34,7 @@ private:
     PieceType squarePieceType[64]; // Array that stores the piece type of each square
 
     uint64_t pieces[2][6]; // Bitboards for all types of pieces of each color (first index for color, second index for piece type)
+    uint64_t allPieces[2]; // Bitboards that hold all pieces of each color
     
     uint64_t pawnPushes[2][64], pawnAttacks[2][64]; // Bitboards for pawn movement
     uint64_t knightMovement[64]; // Bitboards for knight movement

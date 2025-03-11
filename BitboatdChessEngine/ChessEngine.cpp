@@ -8,13 +8,7 @@ ChessEngine::ChessEngine() {
 
 uint64_t ChessEngine::getAllPieces() const
 {
-    uint64_t result = 0;
-
-    for (int color = 0; color < 2; color++)
-        for (int type = 0; type < 6; type++)
-            result |= pieces[color][type];
-
-    return result;
+    return allPieces[WHITE] | allPieces[BLACK];
 }
 
 void ChessEngine::initializeSquarePieceTypeArray()
@@ -45,6 +39,9 @@ void ChessEngine::initializeBitboards() {
     pieces[BLACK][ROOK] = 0x8100000000000000ULL;
     pieces[BLACK][QUEEN] = 0x0800000000000000ULL;
     pieces[BLACK][KING] = 0x1000000000000000ULL;
+
+    allPieces[WHITE] = 0x000000000000FFFFULL;
+    allPieces[BLACK] = 0xFFFF000000000000ULL;
 
     initializePawnMovesetBitboards();
     initializeKnightMovesetBitboards();
@@ -352,15 +349,12 @@ MoveList ChessEngine::getMoves(const Color color) const
 {
     MoveList moveList;
 
-    uint64_t ownPieces = pieces[color][PAWN] | pieces[color][KNIGHT] | pieces[color][BISHOP] | pieces[color][ROOK] | pieces[color][QUEEN] | pieces[color][KING];
-    uint64_t enemyPieces = pieces[!color][PAWN] | pieces[!color][KNIGHT] | pieces[!color][BISHOP] | pieces[!color][ROOK] | pieces[!color][QUEEN] | pieces[!color][KING];
-
-    addPawnMoves(color, moveList, ownPieces, enemyPieces);
-    addKnightMoves(color, moveList, ownPieces);
-    addKingMoves(color, moveList, ownPieces);
-    addRookMoves(color, moveList, ownPieces, enemyPieces);
-    addBishopMoves(color, moveList, ownPieces, enemyPieces);
-    addQueenMoves(color, moveList, ownPieces, enemyPieces);
+    addPawnMoves(color, moveList, allPieces[color], allPieces[!color]);
+    addKnightMoves(color, moveList, allPieces[color]);
+    addKingMoves(color, moveList, allPieces[color]);
+    addRookMoves(color, moveList, allPieces[color], allPieces[!color]);
+    addBishopMoves(color, moveList, allPieces[color], allPieces[!color]);
+    addQueenMoves(color, moveList, allPieces[color], allPieces[!color]);
 
     return moveList;
 }
@@ -382,13 +376,18 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Move the piece
         pieces[colorToMove][movingPieceType] ^= fromSquareMask;
         pieces[colorToMove][movingPieceType] ^= toSquareMask;
+        allPieces[colorToMove] ^= fromSquareMask;
+        allPieces[colorToMove] ^= toSquareMask;
 
         // Find captured piece type
         PieceType capturedPieceType = squarePieceType[toSquare];
 
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE && pieces[!colorToMove][capturedPieceType] != PieceType::NONE)
+        {
             pieces[!colorToMove][capturedPieceType] ^= toSquareMask;
+            allPieces[!colorToMove] ^= toSquareMask;
+        }
 
         // Update the array that stores piece types for each square
         squarePieceType[fromSquare] = PieceType::NONE;
@@ -424,11 +423,16 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         // Move the piece
         pieces[colorThatMoved][movingPieceType] ^= toSquareMask;
         pieces[colorThatMoved][movingPieceType] ^= fromSquareMask;
+        allPieces[colorThatMoved] ^= toSquareMask;
+        allPieces[colorThatMoved] ^= fromSquareMask;
 
         // Find captured piece type
         PieceType capturedPieceType = static_cast<PieceType>(undoHelper.capturedPieceType());
         if (capturedPieceType != PieceType::NONE)
+        {
             pieces[!colorThatMoved][capturedPieceType] ^= toSquareMask;
+            allPieces[!colorThatMoved] ^= toSquareMask;
+        }
 
         squarePieceType[toSquare] = capturedPieceType;
         squarePieceType[fromSquare] = movingPieceType;
