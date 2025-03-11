@@ -375,7 +375,7 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
             capturedPieceType++;
 
         // Capture the enemy piece
-        if (pieces[!colorToMove][capturedPieceType] != PieceType::NONE)
+        if (capturedPieceType != PieceType::NONE && pieces[!colorToMove][capturedPieceType] != PieceType::NONE)
             pieces[!colorToMove][capturedPieceType] ^= toSquareMask;
 
         // Push the changes to the undo stack
