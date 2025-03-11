@@ -353,27 +353,32 @@ MoveList ChessEngine::getMoves(const Color color) const
 
 void ChessEngine::makeMove(const Move move, const Color colorToMove)
 {
+    // Extract move information
     uint64_t toSquareMask = 1ULL << move.to();
     uint64_t fromSquareMask = 1ULL << move.from();
     Move::MoveType moveType = move.moveType();
 
+    // Find moving piece type
     int movingPieceType = 0;
     while (movingPieceType != PieceType::NONE && !(pieces[colorToMove][movingPieceType] & fromSquareMask))
         movingPieceType++;
 
-    int capturedPieceType = 0;
-    while (capturedPieceType != PieceType::NONE && !(pieces[!colorToMove][capturedPieceType] & toSquareMask))
-        capturedPieceType++;
-
     if (moveType == Move::MoveType::NORMAL)
     {
-        std::cout << "COX: " << movingPieceType << "\n";
+        // Move the piece
         pieces[colorToMove][movingPieceType] ^= fromSquareMask;
         pieces[colorToMove][movingPieceType] ^= toSquareMask;
 
+        // Find captured piece type
+        int capturedPieceType = 0;
+        while (capturedPieceType != PieceType::NONE && !(pieces[!colorToMove][capturedPieceType] & toSquareMask))
+            capturedPieceType++;
+
+        // Capture the enemy piece
         if (pieces[!colorToMove][capturedPieceType] != PieceType::NONE)
             pieces[!colorToMove][capturedPieceType] ^= toSquareMask;
 
+        // Push the changes to the undo stack
         undoStack.push(UndoHelper(move.from(), move.to(), moveType, capturedPieceType));
 
         return;
@@ -384,22 +389,27 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
 
 void ChessEngine::undoMove(const Color colorThatMoved)
 {
+    // Get last move information
     UndoHelper undoHelper = undoStack.top();
     undoStack.pop();
 
+    // Extract move information
     uint64_t toSquareMask = 1ULL << undoHelper.to();
     uint64_t fromSquareMask = 1ULL << undoHelper.from();
     Move::MoveType moveType = undoHelper.moveType();
 
+    // Find moving piece type
     int movingPieceType = 0;
     while (movingPieceType != PieceType::NONE && !(pieces[colorThatMoved][movingPieceType] & toSquareMask))
         movingPieceType++;
 
     if (moveType == Move::MoveType::NORMAL)
     {
+        // Move the piece
         pieces[colorThatMoved][movingPieceType] ^= toSquareMask;
         pieces[colorThatMoved][movingPieceType] ^= fromSquareMask;
 
+        // Find captured piece type
         int capturedPieceType = undoHelper.capturedPieceType();
         if (capturedPieceType != PieceType::NONE)
             pieces[!colorThatMoved][capturedPieceType] ^= toSquareMask;
