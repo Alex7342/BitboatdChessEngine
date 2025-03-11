@@ -29,8 +29,10 @@ public:
     void undoMove(const Color colorThatMoved);
 
     unsigned long long perft(const int depth, const Color colorToMove);
-
+    PieceType squarePieceType[64]; // Array that stores the piece type of each square
 private:
+
+
     uint64_t pieces[2][6]; // Bitboards for all types of pieces of each color (first index for color, second index for piece type)
     
     uint64_t pawnPushes[2][64], pawnAttacks[2][64]; // Bitboards for pawn movement
@@ -46,6 +48,8 @@ private:
     int bishopSquareOffset[64]; // Offset for each square in the bishop movement array
 
     void initializeBitboards(); // Initialize bitboards with the classic chess setup
+
+    void initializeSquarePieceTypeArray(); // Initialize the array that stores piece type for every square with the classic chess setup
 
     void initializePawnMovesetBitboards(); // Initialize pawn push and attack bitboards
     void initializeKnightMovesetBitboards(); // Initialize knight moveset bitboards

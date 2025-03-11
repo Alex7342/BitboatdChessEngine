@@ -3,6 +3,7 @@
 
 ChessEngine::ChessEngine() {
     initializeBitboards();
+    initializeSquarePieceTypeArray();
 }
 
 uint64_t ChessEngine::getAllPieces() const
@@ -14,6 +15,19 @@ uint64_t ChessEngine::getAllPieces() const
             result |= pieces[color][type];
 
     return result;
+}
+
+void ChessEngine::initializeSquarePieceTypeArray()
+{
+    for (int square = 0; square < 64; square++)
+    {
+        squarePieceType[square] = PieceType::NONE;
+
+        for (int color = 0; color < 2; color++)
+            for (int type = 0; type < 6; type++)
+                if (pieces[color][type] & (1ULL << square))
+                    squarePieceType[square] = static_cast<PieceType>(type);
+    }
 }
 
 void ChessEngine::initializeBitboards() {
@@ -354,14 +368,14 @@ MoveList ChessEngine::getMoves(const Color color) const
 void ChessEngine::makeMove(const Move move, const Color colorToMove)
 {
     // Extract move information
-    uint64_t toSquareMask = 1ULL << move.to();
-    uint64_t fromSquareMask = 1ULL << move.from();
+    uint8_t toSquare = move.to();
+    uint8_t fromSquare = move.from();
+    uint64_t toSquareMask = 1ULL << toSquare;
+    uint64_t fromSquareMask = 1ULL << fromSquare;
     Move::MoveType moveType = move.moveType();
 
     // Find moving piece type
-    int movingPieceType = 0;
-    while (movingPieceType != PieceType::NONE && !(pieces[colorToMove][movingPieceType] & fromSquareMask))
-        movingPieceType++;
+    PieceType movingPieceType = squarePieceType[fromSquare];
 
     if (moveType == Move::MoveType::NORMAL)
     {
@@ -370,16 +384,18 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         pieces[colorToMove][movingPieceType] ^= toSquareMask;
 
         // Find captured piece type
-        int capturedPieceType = 0;
-        while (capturedPieceType != PieceType::NONE && !(pieces[!colorToMove][capturedPieceType] & toSquareMask))
-            capturedPieceType++;
+        PieceType capturedPieceType = squarePieceType[toSquare];
 
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE && pieces[!colorToMove][capturedPieceType] != PieceType::NONE)
             pieces[!colorToMove][capturedPieceType] ^= toSquareMask;
 
+        // Update the array that stores piece types for each square
+        squarePieceType[fromSquare] = PieceType::NONE;
+        squarePieceType[toSquare] = movingPieceType;
+
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(move.from(), move.to(), moveType, capturedPieceType));
+        undoStack.push(UndoHelper(fromSquare, toSquare, moveType, capturedPieceType));
 
         return;
     }
@@ -394,14 +410,14 @@ void ChessEngine::undoMove(const Color colorThatMoved)
     undoStack.pop();
 
     // Extract move information
-    uint64_t toSquareMask = 1ULL << undoHelper.to();
-    uint64_t fromSquareMask = 1ULL << undoHelper.from();
+    uint8_t toSquare = undoHelper.to();
+    uint8_t fromSquare = undoHelper.from();
+    uint64_t toSquareMask = 1ULL << toSquare;
+    uint64_t fromSquareMask = 1ULL << fromSquare;
     Move::MoveType moveType = undoHelper.moveType();
 
     // Find moving piece type
-    int movingPieceType = 0;
-    while (movingPieceType != PieceType::NONE && !(pieces[colorThatMoved][movingPieceType] & toSquareMask))
-        movingPieceType++;
+    PieceType movingPieceType = squarePieceType[toSquare];
 
     if (moveType == Move::MoveType::NORMAL)
     {
@@ -410,9 +426,12 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         pieces[colorThatMoved][movingPieceType] ^= fromSquareMask;
 
         // Find captured piece type
-        int capturedPieceType = undoHelper.capturedPieceType();
+        PieceType capturedPieceType = static_cast<PieceType>(undoHelper.capturedPieceType());
         if (capturedPieceType != PieceType::NONE)
             pieces[!colorThatMoved][capturedPieceType] ^= toSquareMask;
+
+        squarePieceType[toSquare] = capturedPieceType;
+        squarePieceType[fromSquare] = movingPieceType;
 
         return;
     }
