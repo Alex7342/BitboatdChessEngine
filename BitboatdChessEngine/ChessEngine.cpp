@@ -333,6 +333,35 @@ void ChessEngine::addQueenMoves(const Color color, MoveList& movelist, const uin
     }
 }
 
+bool ChessEngine::isAttacked(const int square, const Color color)
+{
+    // Check for pawn attacks
+    if (pawnAttacks[color ^ 1][square] & pieces[color][PAWN])
+        return true;
+
+    // Check for knight attacks
+    if (knightMovement[square] & pieces[color][KNIGHT])
+        return true;
+
+    // Check for king attacks
+    if (kingMovement[square] & pieces[color][KING])
+        return true;
+
+    uint64_t allPieces = this->allPieces[WHITE] + this->allPieces[BLACK];
+
+    // Check for rook attacks (queens included)
+    uint64_t rookAttacks = rookMovement[rookSquareOffset[square] + _pext_u64(allPieces & rookOccupancyMask[square], rookOccupancyMask[square])];
+    if (rookAttacks & (pieces[color][ROOK] | pieces[color][QUEEN]))
+        return true;
+
+    // Check for bishop attacks (queens included)
+    uint64_t bishopAttacks = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPieces & bishopOccupancyMask[square], bishopOccupancyMask[square])];
+    if (bishopAttacks & (pieces[color][BISHOP] | pieces[color][QUEEN]))
+        return true;
+
+    return false;
+}
+
 std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
     std::string board = "";
     for (int rank = 7; rank >= 0; --rank) {
@@ -343,6 +372,17 @@ std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
         board += "\n";
     }
     return board;
+}
+
+std::string ChessEngine::getSquareNotation(const int square) const
+{
+    if (square < 0 || square > 63)
+        return "Invalid square";
+
+    char file = 'a' + (square % 8); // Get file (column) from 'a' to 'h'
+    int rank = 1 + (square / 8);    // Get rank (row) from 1 to 8
+
+    return std::string(1, file) + std::to_string(rank);
 }
 
 MoveList ChessEngine::getMoves(const Color color) const
@@ -451,14 +491,25 @@ unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
     MoveList movelist = getMoves(colorToMove);
 
     if (depth == 1)
-        return movelist.numberOfMoves;
+    {
+        unsigned long long result = 0;
+        for (int i = 0; i < movelist.numberOfMoves; i++)
+        {
+            makeMove(movelist.moves[i], colorToMove);
+            if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
+                result++;
+            undoMove(colorToMove);
+        }
+        return result;
+    }
     
     unsigned long long result = 0;
 
     for (int i = 0; i < movelist.numberOfMoves; i++)
     {
         makeMove(movelist.moves[i], colorToMove);
-        result += perft(depth - 1, static_cast<Color>(1 -colorToMove));
+        if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
+            result += perft(depth - 1, static_cast<Color>(1 ^ colorToMove));
         undoMove(colorToMove);
     }
 

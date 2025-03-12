@@ -22,6 +22,7 @@ public:
     uint64_t getAllPieces() const;
 
     std::string bitboardToString(const uint64_t bitboard) const;
+    std::string getSquareNotation(const int square) const;
 
     MoveList getMoves(const Color color) const;
 
@@ -48,6 +49,8 @@ private:
     uint64_t bishopMovement[5248]; // Bitboards for bishop movement
     int bishopSquareOffset[64]; // Offset for each square in the bishop movement array
 
+    std::stack<UndoHelper> undoStack; // Stack information about every move (for undo purposes)
+
     void initializeBitboards(); // Initialize bitboards with the classic chess setup
 
     void initializeSquarePieceTypeArray(); // Initialize the array that stores piece type for every square with the classic chess setup
@@ -69,5 +72,5 @@ private:
     void addBishopMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the bishop moves of the given color to the move list
     void addQueenMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the queen moves of the given color to the move list
 
-    std::stack<UndoHelper> undoStack; // Stack information about every move (for undo purposes)
+    bool isAttacked(const int square, const Color color);
 };
