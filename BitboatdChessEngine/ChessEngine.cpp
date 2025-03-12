@@ -137,10 +137,10 @@ void ChessEngine::initializeBishopMovesetBitboards()
     }
 }
 
-void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint64_t ownPieces, const uint64_t enemyPieces) const
+void ChessEngine::addPawnMoves(const Color color, MoveList& moveList) const
 {
     uint64_t pawns = pieces[color][PAWN];
-    uint64_t allPieces = ownPieces | enemyPieces;
+    uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
     uint64_t doublePushRank = color == Color::WHITE ? BitboardGenerator::RANK_2 : BitboardGenerator::RANK_7;
     uint64_t promotionRank = color == Color::WHITE ? BitboardGenerator::RANK_7 : BitboardGenerator::RANK_2;
 
@@ -153,7 +153,7 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint
         uint64_t singlePawnBitboard = 1ULL << square;
 
         // Add pawn pushes
-        if (!(pawnPushes[color][square] & allPieces))
+        if (!(pawnPushes[color][square] & allPiecesOnBoard))
         {
             int pushSquare = _tzcnt_u64(pawnPushes[color][square]);
 
@@ -175,13 +175,13 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint
             // Check for double push possibility
             if (singlePawnBitboard & doublePushRank)
             {
-                if (!(pawnPushes[color][pushSquare] & allPieces))
+                if (!(pawnPushes[color][pushSquare] & allPiecesOnBoard))
                     moveList.add(Move(square, _tzcnt_u64(pawnPushes[color][pushSquare])));
             }
         }
 
         // Add pawn attacks
-        uint64_t successfulAttacks = pawnAttacks[color][square] & (enemyPieces & ~pieces[!color][KING]); // The enemy king can not be captured
+        uint64_t successfulAttacks = pawnAttacks[color][square] & (allPieces[color ^ 1] & ~pieces[color ^ 1][KING]); // The enemy king can not be captured
         while (successfulAttacks)
         {
             int attackedSquare = _tzcnt_u64(successfulAttacks);
@@ -206,7 +206,7 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint
     }
 }
 
-void ChessEngine::addKnightMoves(const Color color, MoveList& moveList, const uint64_t ownPieces) const
+void ChessEngine::addKnightMoves(const Color color, MoveList& moveList) const
 {
     uint64_t knights = pieces[color][KNIGHT];
 
@@ -216,7 +216,7 @@ void ChessEngine::addKnightMoves(const Color color, MoveList& moveList, const ui
         int square = _tzcnt_u64(knights);
 
         // Add knight moves (the enemy king can not be captured)
-        uint64_t possibleMoves = knightMovement[square] & ~ownPieces & ~pieces[!color][KING];
+        uint64_t possibleMoves = knightMovement[square] & ~allPieces[color] & ~pieces[color ^ 1][KING];
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -229,7 +229,7 @@ void ChessEngine::addKnightMoves(const Color color, MoveList& moveList, const ui
     }
 }
 
-void ChessEngine::addKingMoves(const Color color, MoveList& movelist, const uint64_t ownPieces) const
+void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
 {
     uint64_t king = pieces[color][KING];
 
@@ -239,7 +239,7 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist, const uint
         int square = _tzcnt_u64(king);
 
         // Add king moves (enemy king can not be captured)
-        uint64_t possibleMoves = kingMovement[square] & ~ownPieces & ~pieces[!color][KING];
+        uint64_t possibleMoves = kingMovement[square] & ~allPieces[color] & ~pieces[color ^ 1][KING];
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -254,10 +254,10 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist, const uint
     }
 }
 
-void ChessEngine::addRookMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const
+void ChessEngine::addRookMoves(const Color color, MoveList& movelist) const
 {
     uint64_t rooks = pieces[color][ROOK];
-    uint64_t allPieces = ownPieces | enemyPieces;
+    uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
 
     while (rooks)
     {
@@ -265,8 +265,8 @@ void ChessEngine::addRookMoves(const Color color, MoveList& movelist, const uint
         int square = _tzcnt_u64(rooks);
 
         // Get the rook moves from the pre-generated movement bitboards (use PEXT to hash the current board)
-        uint64_t possibleMoves = rookMovement[rookSquareOffset[square] + _pext_u64(allPieces & rookOccupancyMask[square], rookOccupancyMask[square])];
-        possibleMoves &= ~ownPieces; // Remove the pieces of the same color from the attack set
+        uint64_t possibleMoves = rookMovement[rookSquareOffset[square] + _pext_u64(allPiecesOnBoard & rookOccupancyMask[square], rookOccupancyMask[square])];
+        possibleMoves &= ~allPieces[color]; // Remove the pieces of the same color from the attack set
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -279,10 +279,10 @@ void ChessEngine::addRookMoves(const Color color, MoveList& movelist, const uint
     }
 }
 
-void ChessEngine::addBishopMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const
+void ChessEngine::addBishopMoves(const Color color, MoveList& movelist) const
 {
     uint64_t bishops = pieces[color][BISHOP];
-    uint64_t allPieces = ownPieces | enemyPieces;
+    uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
 
     while (bishops)
     {
@@ -290,8 +290,8 @@ void ChessEngine::addBishopMoves(const Color color, MoveList& movelist, const ui
         int square = _tzcnt_u64(bishops);
 
         // Get the bishop moves from the pre-generated movement bitboards (use PEXT to hash the current board)
-        uint64_t possibleMoves = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPieces & bishopOccupancyMask[square], bishopOccupancyMask[square])];
-        possibleMoves &= ~ownPieces; // Remove the pieces of the same color from the attack set
+        uint64_t possibleMoves = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPiecesOnBoard & bishopOccupancyMask[square], bishopOccupancyMask[square])];
+        possibleMoves &= ~allPieces[color]; // Remove the pieces of the same color from the attack set
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -304,10 +304,10 @@ void ChessEngine::addBishopMoves(const Color color, MoveList& movelist, const ui
     }
 }
 
-void ChessEngine::addQueenMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const
+void ChessEngine::addQueenMoves(const Color color, MoveList& movelist) const
 {
     uint64_t queens = pieces[color][QUEEN];
-    uint64_t allPieces = ownPieces | enemyPieces;
+    uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
 
     while (queens)
     {
@@ -315,12 +315,12 @@ void ChessEngine::addQueenMoves(const Color color, MoveList& movelist, const uin
         int square = _tzcnt_u64(queens);
 
         // Get the rook moves from the pre-generated movement bitboards (use PEXT to hash the current board)
-        uint64_t possibleRookMoves = rookMovement[rookSquareOffset[square] + _pext_u64(allPieces & rookOccupancyMask[square], rookOccupancyMask[square])];
+        uint64_t possibleRookMoves = rookMovement[rookSquareOffset[square] + _pext_u64(allPiecesOnBoard & rookOccupancyMask[square], rookOccupancyMask[square])];
         // Get the bishop moves from the pre-generated movement bitboards (use PEXT to hash the current board)
-        uint64_t possibleBishopMoves = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPieces & bishopOccupancyMask[square], bishopOccupancyMask[square])];
+        uint64_t possibleBishopMoves = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPiecesOnBoard & bishopOccupancyMask[square], bishopOccupancyMask[square])];
 
         // Combine the rook and bishop moves and remove own pieces from attack set
-        uint64_t possibleMoves = (possibleRookMoves | possibleBishopMoves) & ~ownPieces;
+        uint64_t possibleMoves = (possibleRookMoves | possibleBishopMoves) & ~allPieces[color];
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -389,12 +389,12 @@ MoveList ChessEngine::getMoves(const Color color) const
 {
     MoveList moveList;
 
-    addPawnMoves(color, moveList, allPieces[color], allPieces[!color]);
-    addKnightMoves(color, moveList, allPieces[color]);
-    addKingMoves(color, moveList, allPieces[color]);
-    addRookMoves(color, moveList, allPieces[color], allPieces[!color]);
-    addBishopMoves(color, moveList, allPieces[color], allPieces[!color]);
-    addQueenMoves(color, moveList, allPieces[color], allPieces[!color]);
+    addPawnMoves(color, moveList);
+    addKnightMoves(color, moveList);
+    addKingMoves(color, moveList);
+    addRookMoves(color, moveList);
+    addBishopMoves(color, moveList);
+    addQueenMoves(color, moveList);
 
     return moveList;
 }
@@ -423,10 +423,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         PieceType capturedPieceType = squarePieceType[toSquare];
 
         // Capture the enemy piece
-        if (capturedPieceType != PieceType::NONE && pieces[!colorToMove][capturedPieceType] != PieceType::NONE)
+        if (capturedPieceType != PieceType::NONE && pieces[colorToMove ^ 1][capturedPieceType] != PieceType::NONE)
         {
-            pieces[!colorToMove][capturedPieceType] ^= toSquareMask;
-            allPieces[!colorToMove] ^= toSquareMask;
+            pieces[colorToMove ^ 1][capturedPieceType] ^= toSquareMask;
+            allPieces[colorToMove ^ 1] ^= toSquareMask;
         }
 
         // Update the array that stores piece types for each square
@@ -470,8 +470,8 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         PieceType capturedPieceType = static_cast<PieceType>(undoHelper.capturedPieceType());
         if (capturedPieceType != PieceType::NONE)
         {
-            pieces[!colorThatMoved][capturedPieceType] ^= toSquareMask;
-            allPieces[!colorThatMoved] ^= toSquareMask;
+            pieces[colorThatMoved ^ 1][capturedPieceType] ^= toSquareMask;
+            allPieces[colorThatMoved ^ 1] ^= toSquareMask;
         }
 
         squarePieceType[toSquare] = capturedPieceType;

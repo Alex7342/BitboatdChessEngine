@@ -65,12 +65,12 @@ private:
     void initializeBishopOccupancyMasks(); // Initialize bishop occupancy masks
     void initializeBishopMovesetBitboards(); // Initialize bishop moveset bitboards
 
-    void addPawnMoves(const Color color, MoveList& moveList, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the pawn moves of the given color to the move list
-    void addKnightMoves(const Color color, MoveList& moveList, const uint64_t ownPieces) const; // Add all the knight moves of the given color to the move list
-    void addKingMoves(const Color color, MoveList& movelist, const uint64_t ownPieces) const; // Add all the king moves of the given color to the move list
-    void addRookMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the rook moves of the given color to the move list
-    void addBishopMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the bishop moves of the given color to the move list
-    void addQueenMoves(const Color color, MoveList& movelist, const uint64_t ownPieces, const uint64_t enemyPieces) const; // Add all the queen moves of the given color to the move list
+    void addPawnMoves(const Color color, MoveList& moveList) const; // Add all the pawn moves of the given color to the move list
+    void addKnightMoves(const Color color, MoveList& moveList) const; // Add all the knight moves of the given color to the move list
+    void addKingMoves(const Color color, MoveList& movelist) const; // Add all the king moves of the given color to the move list
+    void addRookMoves(const Color color, MoveList& movelist) const; // Add all the rook moves of the given color to the move list
+    void addBishopMoves(const Color color, MoveList& movelist) const; // Add all the bishop moves of the given color to the move list
+    void addQueenMoves(const Color color, MoveList& movelist) const; // Add all the queen moves of the given color to the move list
 
     bool isAttacked(const int square, const Color color);
 };
