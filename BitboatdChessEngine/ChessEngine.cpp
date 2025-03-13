@@ -7,6 +7,107 @@ ChessEngine::ChessEngine() {
     initializePromotionPieceToPieceTypeArray();
 }
 
+void ChessEngine::loadFENPosition(const std::string position)
+{
+    for (int color = 0; color < 2; color++)
+    {
+        allPieces[color] = 0ULL;
+        for (int type = 0; type < 6; type++)
+            pieces[color][type] = 0ULL;
+    }
+
+    int square = 56;
+
+    for (int i = 0; i < position.size(); i++)
+    {
+        std::cout << square << " " << position[i] << "\n";
+
+        if ('a' <= position[i] && position[i] <= 'z')
+        {
+            allPieces[BLACK] ^= 1ULL << square;
+
+            switch (position[i])
+            {
+            case 'p':
+                pieces[BLACK][PAWN] ^= 1ULL << square;
+                break;
+            case 'n':
+                pieces[BLACK][KNIGHT] ^= 1ULL << square;
+                break;
+            case 'b':
+                pieces[BLACK][BISHOP] ^= 1ULL << square;
+                break;
+            case 'r':
+                pieces[BLACK][ROOK] ^= 1ULL << square;
+                break;
+            case 'q':
+                pieces[BLACK][QUEEN] ^= 1ULL << square;
+                break;
+            case 'k':
+                pieces[BLACK][KING] ^= 1ULL << square;
+                break;
+            default:
+                break;
+            }
+
+            square++;
+        }
+        else if ('A' <= position[i] && position[i] <= 'Z')
+        {
+            allPieces[WHITE] ^= 1ULL << square;
+
+            switch (position[i])
+            {
+            case 'P':
+                pieces[WHITE][PAWN] ^= 1ULL << square;
+                break;
+            case 'N':
+                pieces[WHITE][KNIGHT] ^= 1ULL << square;
+                break;
+            case 'B':
+                pieces[WHITE][BISHOP] ^= 1ULL << square;
+                break;
+            case 'R':
+                pieces[WHITE][ROOK] ^= 1ULL << square;
+                break;
+            case 'Q':
+                pieces[WHITE][QUEEN] ^= 1ULL << square;
+                break;
+            case 'K':
+                pieces[WHITE][KING] ^= 1ULL << square;
+                break;
+            default:
+                break;
+            }
+
+            square++;
+        }
+        else if ('0' <= position[i] && position[i] <= '9')
+        {
+            int number = 0;
+
+            // Parse the whole number
+            while (i < position.size() && '0' <= position[i] && position[i] <= '9')
+            {
+                number = number * 10 + position[i] - '0';
+                i++;
+            }
+
+            // Make i the index of the last digit of the number, as the "for" statement will increment it
+            i--;
+
+            square += number;
+        }
+        else if (position[i] == '/')
+        {
+            // Get to the next rank
+            square -= 16;
+        }
+    }
+
+    initializeSquarePieceTypeArray();
+}
+
 uint64_t ChessEngine::getAllPieces() const
 {
     return allPieces[WHITE] | allPieces[BLACK];
@@ -488,6 +589,9 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         squarePieceType[fromSquare] = PieceType::NONE;
         squarePieceType[toSquare] = promotionType;
 
+        // Push the changes to the undo stack
+        undoStack.push(UndoHelper(fromSquare, toSquare, moveType, capturedPieceType));
+
         return;
     }
 
@@ -507,12 +611,12 @@ void ChessEngine::undoMove(const Color colorThatMoved)
     uint64_t fromSquareMask = 1ULL << fromSquare;
     Move::MoveType moveType = undoHelper.moveType();
 
-    // Find moving piece type
-    PieceType movingPieceType = squarePieceType[toSquare];
-
     if (moveType == Move::MoveType::NORMAL)
     {
-        // Move the piece
+        // Find moving piece type
+        PieceType movingPieceType = squarePieceType[toSquare];
+
+        // Move the piece back
         pieces[colorThatMoved][movingPieceType] ^= toSquareMask;
         pieces[colorThatMoved][movingPieceType] ^= fromSquareMask;
         allPieces[colorThatMoved] ^= toSquareMask;
@@ -520,19 +624,50 @@ void ChessEngine::undoMove(const Color colorThatMoved)
 
         // Find captured piece type
         PieceType capturedPieceType = static_cast<PieceType>(undoHelper.capturedPieceType());
+
+        // Revert the capture of the enemy piece
         if (capturedPieceType != PieceType::NONE)
         {
             pieces[colorThatMoved ^ 1][capturedPieceType] ^= toSquareMask;
             allPieces[colorThatMoved ^ 1] ^= toSquareMask;
         }
 
+        // Update the array that stores piece types for each square
         squarePieceType[toSquare] = capturedPieceType;
         squarePieceType[fromSquare] = movingPieceType;
 
         return;
     }
 
-    // TODO Implement special move handling
+    if (moveType == Move::MoveType::PROMOTION)
+    {
+        // Find moving piece type
+        PieceType movingPieceType = squarePieceType[toSquare];
+
+        // Move the piece back
+        pieces[colorThatMoved][movingPieceType] ^= toSquareMask;
+        pieces[colorThatMoved][PAWN] ^= fromSquareMask;
+        allPieces[colorThatMoved] ^= toSquareMask;
+        allPieces[colorThatMoved] ^= fromSquareMask;
+
+        // Find captured piece type
+        PieceType capturedPieceType = static_cast<PieceType>(undoHelper.capturedPieceType());
+
+        // Revert the capture of the enemy piece
+        if (capturedPieceType != PieceType::NONE)
+        {
+            pieces[colorThatMoved ^ 1][capturedPieceType] ^= toSquareMask;
+            allPieces[colorThatMoved ^ 1] ^= toSquareMask;
+        }
+
+        // Update the array that stores piece types for each square
+        squarePieceType[toSquare] = capturedPieceType;
+        squarePieceType[fromSquare] = PieceType::PAWN;
+
+        return;
+    }
+
+    // TODO Implement en passant and castle handling
 }
 
 unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)

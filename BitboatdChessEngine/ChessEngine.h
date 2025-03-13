@@ -19,6 +19,8 @@ public:
 
     ChessEngine();
 
+    void loadFENPosition(const std::string position);
+
     uint64_t getAllPieces() const;
 
     std::string bitboardToString(const uint64_t bitboard) const;
