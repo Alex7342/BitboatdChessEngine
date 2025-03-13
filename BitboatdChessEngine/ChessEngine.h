@@ -49,11 +49,13 @@ private:
     uint64_t bishopMovement[5248]; // Bitboards for bishop movement
     int bishopSquareOffset[64]; // Offset for each square in the bishop movement array
 
+    PieceType promotionPieceToPieceType[4]; // Get the corresponding piece type from an encoded promotion piece
+
     std::stack<UndoHelper> undoStack; // Stack information about every move (for undo purposes)
 
     void initializeBitboards(); // Initialize bitboards with the classic chess setup
-
     void initializeSquarePieceTypeArray(); // Initialize the array that stores piece type for every square with the classic chess setup
+    void initializePromotionPieceToPieceTypeArray(); // Initialize the array that stores the corresponding piece type for every promotion type
 
     void initializePawnMovesetBitboards(); // Initialize pawn push and attack bitboards
     void initializeKnightMovesetBitboards(); // Initialize knight moveset bitboards
