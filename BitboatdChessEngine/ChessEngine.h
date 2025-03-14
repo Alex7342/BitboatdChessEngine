@@ -86,5 +86,5 @@ private:
     void addBishopMoves(const Color color, MoveList& movelist) const; // Add all the bishop moves of the given color to the move list
     void addQueenMoves(const Color color, MoveList& movelist) const; // Add all the queen moves of the given color to the move list
 
-    bool isAttacked(const int square, const Color color) const;
+    bool isAttacked(const int square, const Color color) const; // Returns true if the given square is attacked by the given color, false otherwise
 };
