@@ -150,13 +150,17 @@ void ChessEngine::initializePromotionPieceToPieceTypeArray()
 
 void ChessEngine::initializePositionSpecialStatistics()
 {
+    // Initialize castling rights
     castlingRights = (1 << 4) - 1;
     whiteCastleQueenSide = 1;
     whiteCastleKingSide = 1 << 1;
     blackCastleQueenSide = 1 << 2;
     blackCastleKingSide = 1 << 3;
 
-    // TODO Initialize en passant attack squares, 50 move rule, etc
+    // Initialize en passant target squares
+    enPassantTargetBitboard = 0ULL;
+
+    // TODO Initialize 50 move rule, etc
 }
 
 void ChessEngine::initializeSquaresBetweenBitboards()
@@ -343,6 +347,13 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList) const
                 moveList.add(Move(square, attackedSquare));
             }
             successfulAttacks &= successfulAttacks - 1;
+        }
+
+        // Add en passant attack
+        if (pawnAttacks[color][square] & enPassantTargetBitboard)
+        {
+            // Add en passant attack
+            moveList.add(Move(square, _tzcnt_u64(enPassantTargetBitboard), Move::MoveType::EN_PASSANT));
         }
 
         // Remove the LSB
@@ -667,7 +678,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         PieceType capturedPieceType = squarePieceType[toSquare];
         
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, moveType, capturedPieceType));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, capturedPieceType));
+
+        // Empty the en passant target bitboard
+        enPassantTargetBitboard = 0ULL;
 
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE)
@@ -723,6 +737,11 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
                 castlingRights &= ~blackCastleKingSide;
             }
         }
+        // Update en passant square if a pawn makes a double push
+        else if (movingPieceType == PAWN && squaresBetween[fromSquare][toSquare])
+        {
+            enPassantTargetBitboard = squaresBetween[fromSquare][toSquare];
+        }
 
         return;
     }
@@ -742,7 +761,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         PieceType capturedPieceType = squarePieceType[toSquare];
 
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, moveType, capturedPieceType));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, capturedPieceType));
+
+        // Empty the en passant target bitboard
+        enPassantTargetBitboard = 0ULL;
 
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE)
@@ -779,7 +801,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
     if (moveType == Move::MoveType::CASTLE)
     {
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, moveType, PieceType::NONE));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, PieceType::NONE));
+
+        // Empty the en passant target bitboard
+        enPassantTargetBitboard = 0ULL;
 
         uint8_t rookToSquare = 0, rookFromSquare = 0;
         uint64_t rookToSquareMask = 0, rookFromSquareMask = 0;
@@ -833,7 +858,47 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         return;
     }
 
-    // TODO Implement en passant handling
+    if (moveType == Move::MoveType::EN_PASSANT)
+    {
+        // Move the pawn
+        pieces[colorToMove][PAWN] ^= fromSquareMask;
+        pieces[colorToMove][PAWN] ^= toSquareMask;
+        allPieces[colorToMove] ^= fromSquareMask;
+        allPieces[colorToMove] ^= toSquareMask;
+
+        // Push the changes to the undo stack
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, PieceType::PAWN));
+
+        // Empty the en passant target bitboard
+        enPassantTargetBitboard = 0ULL;
+
+        // Compute the captured pawn coordinates
+        int capturedPawnSquare = 0;
+        uint64_t capturedPawnMask = 0ULL;
+        if (colorToMove == Color::WHITE)
+        {
+            // Go one square down
+            capturedPawnSquare = toSquare - 8;
+            capturedPawnMask = 1ULL << capturedPawnSquare;
+        }
+        else if (colorToMove == Color::BLACK)
+        {
+            // Go one square up
+            capturedPawnSquare = toSquare + 8;
+            capturedPawnMask = 1ULL << capturedPawnSquare;
+        }
+
+        // Capture the enemy pawn
+        pieces[colorToMove ^ 1][PAWN] ^= capturedPawnMask;
+        allPieces[colorToMove ^ 1] ^= capturedPawnMask;
+
+        // Update the array that stores piece types for each square
+        squarePieceType[fromSquare] = PieceType::NONE;
+        squarePieceType[toSquare] = PieceType::PAWN;
+        squarePieceType[capturedPawnSquare] = PieceType::NONE;
+
+        return;
+    }
 }
 
 void ChessEngine::undoMove(const Color colorThatMoved)
@@ -874,8 +939,9 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         squarePieceType[toSquare] = capturedPieceType;
         squarePieceType[fromSquare] = movingPieceType;
 
-        // Restore the previous castling rights
+        // Restore the previous castling rights and en passant target bitboard
         castlingRights = undoHelper.castlingRights();
+        enPassantTargetBitboard = undoHelper.enPassantBitboard();
 
         return;
     }
@@ -904,6 +970,10 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         // Update the array that stores piece types for each square
         squarePieceType[toSquare] = capturedPieceType;
         squarePieceType[fromSquare] = PieceType::PAWN;
+
+        // Restore the previous castling rights and en passant target bitboard
+        castlingRights = undoHelper.castlingRights();
+        enPassantTargetBitboard = undoHelper.enPassantBitboard();
 
         return;
     }
@@ -955,13 +1025,53 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         squarePieceType[rookToSquare] = PieceType::NONE;
         squarePieceType[rookFromSquare] = PieceType::ROOK;
 
-        // Restore the previous castling rights
+        // Restore the previous castling rights and en passant target bitboard
         castlingRights = undoHelper.castlingRights();
+        enPassantTargetBitboard = undoHelper.enPassantBitboard();
 
         return;
     }
 
     // TODO Implement en passant and castle handling
+    if (moveType == Move::MoveType::EN_PASSANT)
+    {
+        // Move the pawn back
+        pieces[colorThatMoved][PAWN] ^= toSquareMask;
+        pieces[colorThatMoved][PAWN] ^= fromSquareMask;
+        allPieces[colorThatMoved] ^= toSquareMask;
+        allPieces[colorThatMoved] ^= fromSquareMask;
+
+        // Compute the captured pawn coordinates
+        int capturedPawnSquare = 0;
+        uint64_t capturedPawnMask = 0ULL;
+        if (colorThatMoved == Color::WHITE)
+        {
+            // Go one square down
+            capturedPawnSquare = toSquare - 8;
+            capturedPawnMask = 1ULL << capturedPawnSquare;
+        }
+        else if (colorThatMoved == Color::BLACK)
+        {
+            // Go one square up
+            capturedPawnSquare = toSquare + 8;
+            capturedPawnMask = 1ULL << capturedPawnSquare;
+        }
+
+        // Revert the capture of the enemy pawn
+        pieces[colorThatMoved ^ 1][PAWN] ^= capturedPawnMask;
+        allPieces[colorThatMoved ^ 1] ^= capturedPawnMask;
+
+        // Update the array that stores piece types for each square
+        squarePieceType[fromSquare] = PieceType::PAWN;
+        squarePieceType[toSquare] = PieceType::NONE;
+        squarePieceType[capturedPawnSquare] = PieceType::PAWN;
+
+        // Restore the previous castling rights and en passant target bitboard
+        castlingRights = undoHelper.castlingRights();
+        enPassantTargetBitboard = undoHelper.enPassantBitboard();
+
+        return;
+    }
 }
 
 unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
