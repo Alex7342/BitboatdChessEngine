@@ -665,20 +665,38 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
 
         // Find captured piece type
         PieceType capturedPieceType = squarePieceType[toSquare];
+        
+        // Push the changes to the undo stack
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, moveType, capturedPieceType));
 
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE)
         {
             pieces[colorToMove ^ 1][capturedPieceType] ^= toSquareMask;
             allPieces[colorToMove ^ 1] ^= toSquareMask;
+
+            if (capturedPieceType == PieceType::ROOK)
+            {
+                switch (toSquare)
+                {
+                case 0:
+                    castlingRights &= ~whiteCastleQueenSide;
+                    break;
+                case 7:
+                    castlingRights &= ~whiteCastleKingSide;
+                    break;
+                case 56:
+                    castlingRights &= ~blackCastleQueenSide;
+                    break;
+                case 63:
+                    castlingRights &= ~blackCastleKingSide;
+                }
+            }
         }
 
         // Update the array that stores piece types for each square
         squarePieceType[fromSquare] = PieceType::NONE;
         squarePieceType[toSquare] = movingPieceType;
-
-        // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, moveType, capturedPieceType));
 
         // Update castling rights
         if (movingPieceType == KING)
@@ -723,19 +741,37 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Find captured piece type
         PieceType capturedPieceType = squarePieceType[toSquare];
 
+        // Push the changes to the undo stack
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, moveType, capturedPieceType));
+
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE)
         {
             pieces[colorToMove ^ 1][capturedPieceType] ^= toSquareMask;
             allPieces[colorToMove ^ 1] ^= toSquareMask;
+
+            if (capturedPieceType == PieceType::ROOK)
+            {
+                switch (toSquare)
+                {
+                case 0:
+                    castlingRights &= ~whiteCastleQueenSide;
+                    break;
+                case 7:
+                    castlingRights &= ~whiteCastleKingSide;
+                    break;
+                case 56:
+                    castlingRights &= ~blackCastleQueenSide;
+                    break;
+                case 63:
+                    castlingRights &= ~blackCastleKingSide;
+                }
+            }
         }
 
         // Update the array that stores piece types for each square
         squarePieceType[fromSquare] = PieceType::NONE;
         squarePieceType[toSquare] = promotionType;
-
-        // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, moveType, capturedPieceType));
 
         return;
     }
@@ -935,7 +971,7 @@ unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
 
     MoveList movelist = getMoves(colorToMove);
 
-    if (depth == 1)
+    /*if (depth == 1)
     {
         unsigned long long result = 0;
         for (int i = 0; i < movelist.numberOfMoves; i++)
@@ -946,7 +982,7 @@ unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
             undoMove(colorToMove);
         }
         return result;
-    }
+    }*/
     
     unsigned long long result = 0;
 
