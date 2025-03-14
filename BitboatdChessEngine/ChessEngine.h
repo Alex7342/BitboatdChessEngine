@@ -32,7 +32,6 @@ public:
     void undoMove(const Color colorThatMoved);
 
     unsigned long long perft(const int depth, const Color colorToMove);
-    uint64_t enPassantTargetBitboard; // Bitboard containing the squares that can be attacked by an "en passant" move
 
 private:
     PieceType squarePieceType[64]; // Array that stores the piece type of each square
@@ -43,6 +42,7 @@ private:
     uint8_t castlingRights; // The 4 least significant bits are used to store castling rights
     uint8_t whiteCastleQueenSide, whiteCastleKingSide, blackCastleQueenSide, blackCastleKingSide; // Values corresponding to each castling right
 
+    uint64_t enPassantTargetBitboard; // Bitboard containing the squares that can be attacked by an "en passant" move
 
     uint64_t squaresBetween[64][64]; // Bitboards containing the squares between two other squares (if they are on the same line or diagonal)
 
