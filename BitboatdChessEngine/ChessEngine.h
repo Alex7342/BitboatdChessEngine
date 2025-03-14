@@ -17,22 +17,22 @@ public:
         WHITE, BLACK
     };
 
-    ChessEngine();
+    ChessEngine(); // Chess engine constructor
 
-    void loadFENPosition(const std::string position);
+    void loadFENPosition(const std::string position); // Load a chess position from a FEN string
 
-    uint64_t getAllPieces() const;
+    uint64_t getAllPieces() const; // Get a bitboard containing all pieces on the board
 
-    std::string bitboardToString(const uint64_t bitboard) const;
-    std::string getSquareNotation(const int square) const;
+    std::string bitboardToString(const uint64_t bitboard) const; // Get a string representation of a bitboard
+    std::string getSquareNotation(const int square) const; // Get the notation of a square (notation of square 0 is A1)
 
-    MoveList getPseudolegalMoves(const Color color) const;
-    MoveList getLegalMoves(const Color color);
+    MoveList getPseudolegalMoves(const Color color) const; // Get the pseudolegal moves of the given color
+    MoveList getLegalMoves(const Color color); // Get the legal moves of the given color
 
-    void makeMove(const Move move, const Color colorToMove);
-    void undoMove(const Color colorThatMoved);
+    void makeMove(const Move move, const Color colorToMove); // Make a move on the board as the given color
+    void undoMove(const Color colorThatMoved); // Undo the last move, color of the player that moved required
 
-    unsigned long long perft(const int depth, const Color colorToMove);
+    unsigned long long perft(const int depth, const Color colorToMove); // Perft of a given depth starting with a given color
 
 private:
     PieceType squarePieceType[64]; // Array that stores the piece type of each square
