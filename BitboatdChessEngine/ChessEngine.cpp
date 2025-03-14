@@ -5,6 +5,7 @@ ChessEngine::ChessEngine() {
     initializeBitboards();
     initializeSquarePieceTypeArray();
     initializePromotionPieceToPieceTypeArray();
+    initializePositionSpecialStatistics();
 }
 
 void ChessEngine::loadFENPosition(const std::string position)
@@ -20,8 +21,6 @@ void ChessEngine::loadFENPosition(const std::string position)
 
     for (int i = 0; i < position.size(); i++)
     {
-        std::cout << square << " " << position[i] << "\n";
-
         if ('a' <= position[i] && position[i] <= 'z')
         {
             allPieces[BLACK] ^= 1ULL << square;
@@ -149,6 +148,24 @@ void ChessEngine::initializePromotionPieceToPieceTypeArray()
         }
 }
 
+void ChessEngine::initializePositionSpecialStatistics()
+{
+    castlingRights = (1 << 4) - 1;
+    whiteCastleQueenSide = 1;
+    whiteCastleKingSide = 1 << 1;
+    blackCastleQueenSide = 1 << 2;
+    blackCastleKingSide = 1 << 3;
+
+    // TODO Initialize en passant attack squares, 50 move rule, etc
+}
+
+void ChessEngine::initializeSquaresBetweenBitboards()
+{
+    for (int firstSquare = 0; firstSquare < 64; firstSquare++)
+        for (int secondSquare = 0; secondSquare < 64; secondSquare++)
+            squaresBetween[firstSquare][secondSquare] = BitboardGenerator::generateSquaresBetween(firstSquare, secondSquare);
+}
+
 void ChessEngine::initializeBitboards() {
     // Standard chess starting position for each piece type
     pieces[WHITE][PAWN] = 0x000000000000FF00ULL;
@@ -167,6 +184,8 @@ void ChessEngine::initializeBitboards() {
 
     allPieces[WHITE] = 0x000000000000FFFFULL;
     allPieces[BLACK] = 0xFFFF000000000000ULL;
+
+    initializeSquaresBetweenBitboards();
 
     initializePawnMovesetBitboards();
     initializeKnightMovesetBitboards();
@@ -372,7 +391,107 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
             possibleMoves &= possibleMoves - 1;
         }
 
-        // TODO Implement castling
+        // TODO Check attacks with an attack bitboard
+        if (color == Color::WHITE)
+        {
+            if (castlingRights & whiteCastleQueenSide)
+            {
+                if (!(squaresBetween[0][4] & (allPieces[color] | allPieces[color ^ 1])))
+                {
+                    bool canCastle = true;
+
+                    // Check the squares between the rook and the king (king included) for attacks
+                    uint64_t castleBitboard = squaresBetween[1][4] | (1ULL << square);
+                    while (castleBitboard)
+                    {
+                        int castleSquare = _tzcnt_u64(castleBitboard);
+                        if (isAttacked(castleSquare, static_cast<Color>(color ^ 1)))
+                        {
+                            canCastle = false;
+                            break;
+                        }
+                        castleBitboard &= castleBitboard - 1;
+                    }
+
+                    if (canCastle)
+                        movelist.add(Move(square, 2, Move::MoveType::CASTLE));
+                }
+            }
+
+            if (castlingRights & whiteCastleKingSide)
+            {
+                if (!(squaresBetween[7][4] & (allPieces[color] | allPieces[color ^ 1])))
+                {
+                    bool canCastle = true;
+
+                    // Check the squares between the rook and the king (king included) for attacks
+                    uint64_t castleBitboard = squaresBetween[7][4] | (1ULL << square);
+                    while (castleBitboard)
+                    {
+                        int castleSquare = _tzcnt_u64(castleBitboard);
+                        if (isAttacked(castleSquare, static_cast<Color>(color ^ 1)))
+                        {
+                            canCastle = false;
+                            break;
+                        }
+                        castleBitboard &= castleBitboard - 1;
+                    }
+
+                    if (canCastle)
+                        movelist.add(Move(square, 6, Move::MoveType::CASTLE));
+                }
+            }
+        }
+        else if (color == Color::BLACK)
+        {
+            if (castlingRights & blackCastleQueenSide)
+            {
+                if (!(squaresBetween[56][60] & (allPieces[color] | allPieces[color ^ 1])))
+                {
+                    bool canCastle = true;
+
+                    // Check the squares between the rook and the king (king included) for attacks
+                    uint64_t castleBitboard = squaresBetween[57][60] | (1ULL << square);
+                    while (castleBitboard)
+                    {
+                        int castleSquare = _tzcnt_u64(castleBitboard);
+                        if (isAttacked(castleSquare, static_cast<Color>(color ^ 1)))
+                        {
+                            canCastle = false;
+                            break;
+                        }
+                        castleBitboard &= castleBitboard - 1;
+                    }
+
+                    if (canCastle)
+                        movelist.add(Move(square, 58, Move::MoveType::CASTLE));
+                }
+            }
+
+            if (castlingRights & blackCastleKingSide)
+            {
+                if (!(squaresBetween[63][60] & (allPieces[color] | allPieces[color ^ 1])))
+                {
+                    bool canCastle = true;
+
+                    // Check the squares between the rook and the king (king included) for attacks
+                    uint64_t castleBitboard = squaresBetween[63][60] | (1ULL << square);
+                    while (castleBitboard)
+                    {
+                        int castleSquare = _tzcnt_u64(castleBitboard);
+                        if (isAttacked(castleSquare, static_cast<Color>(color ^ 1)))
+                        {
+                            canCastle = false;
+                            break;
+                        }
+                        castleBitboard &= castleBitboard - 1;
+                    }
+
+                    if (canCastle)
+                        movelist.add(Move(square, 62, Move::MoveType::CASTLE));
+                }
+            }
+        }
 
         // Remove the LSB
         king &= king - 1;
@@ -458,7 +577,7 @@ void ChessEngine::addQueenMoves(const Color color, MoveList& movelist) const
     }
 }
 
-bool ChessEngine::isAttacked(const int square, const Color color)
+bool ChessEngine::isAttacked(const int square, const Color color) const
 {
     // Check for pawn attacks
     if (pawnAttacks[color ^ 1][square] & pieces[color][PAWN])
@@ -559,7 +678,33 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         squarePieceType[toSquare] = movingPieceType;
 
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, moveType, capturedPieceType));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, moveType, capturedPieceType));
+
+        // Update castling rights
+        if (movingPieceType == KING)
+        {
+            if (colorToMove == Color::WHITE)
+                castlingRights &= ~(whiteCastleQueenSide | whiteCastleKingSide);
+            else if (colorToMove == Color::BLACK)
+                castlingRights &= ~(blackCastleQueenSide | blackCastleKingSide);
+        }
+        else if (movingPieceType == ROOK)
+        {
+            switch (fromSquare)
+            {
+            case 0:
+                castlingRights &= ~whiteCastleQueenSide;
+                break;
+            case 7:
+                castlingRights &= ~whiteCastleKingSide;
+                break;
+            case 56:
+                castlingRights &= ~blackCastleQueenSide;
+                break;
+            case 63:
+                castlingRights &= ~blackCastleKingSide;
+            }
+        }
 
         return;
     }
@@ -590,12 +735,69 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         squarePieceType[toSquare] = promotionType;
 
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, moveType, capturedPieceType));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, moveType, capturedPieceType));
 
         return;
     }
 
-    // TODO Implement en passant and castle handling
+    if (moveType == Move::MoveType::CASTLE)
+    {
+        // Push the changes to the undo stack
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, moveType, PieceType::NONE));
+
+        uint8_t rookToSquare = 0, rookFromSquare = 0;
+        uint64_t rookToSquareMask = 0, rookFromSquareMask = 0;
+
+        // Identify the castle move
+        switch (toSquare)
+        {
+        case 2: // White queen side
+            rookFromSquare = 0, rookToSquare = 3;
+            rookFromSquareMask = 1ULL, rookToSquareMask = 1ULL << 3;
+            castlingRights &= ~(whiteCastleQueenSide | whiteCastleKingSide);
+            break;
+
+        case 6: // White king side
+            rookFromSquare = 7, rookToSquare = 5;
+            rookFromSquareMask = 1ULL << 7, rookToSquareMask = 1ULL << 5;
+            castlingRights &= ~(whiteCastleQueenSide | whiteCastleKingSide);
+            break;
+
+        case 58: // Black queen side
+            rookFromSquare = 56, rookToSquare = 59;
+            rookFromSquareMask = 1ULL << 56, rookToSquareMask = 1ULL << 59;
+            castlingRights &= ~(blackCastleQueenSide | blackCastleKingSide);
+            break;
+
+        case 62: // Black king side
+            rookFromSquare = 63, rookToSquare = 61;
+            rookFromSquareMask = 1ULL << 63, rookToSquareMask = 1ULL << 61;
+            castlingRights &= ~(blackCastleQueenSide | blackCastleKingSide);
+            break;
+        }
+
+        // Move the king
+        pieces[colorToMove][KING] ^= fromSquareMask;
+        pieces[colorToMove][KING] ^= toSquareMask;
+        allPieces[colorToMove] ^= fromSquareMask;
+        allPieces[colorToMove] ^= toSquareMask;
+
+        // Move the rook
+        pieces[colorToMove][ROOK] ^= rookFromSquareMask;
+        pieces[colorToMove][ROOK] ^= rookToSquareMask;
+        allPieces[colorToMove] ^= rookFromSquareMask;
+        allPieces[colorToMove] ^= rookToSquareMask;
+
+        // Update the array that stores piece types for each square
+        squarePieceType[fromSquare] = PieceType::NONE;
+        squarePieceType[toSquare] = PieceType::KING;
+        squarePieceType[rookFromSquare] = PieceType::NONE;
+        squarePieceType[rookToSquare] = PieceType::ROOK;
+
+        return;
+    }
+
+    // TODO Implement en passant handling
 }
 
 void ChessEngine::undoMove(const Color colorThatMoved)
@@ -636,6 +838,9 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         squarePieceType[toSquare] = capturedPieceType;
         squarePieceType[fromSquare] = movingPieceType;
 
+        // Restore the previous castling rights
+        castlingRights = undoHelper.castlingRights();
+
         return;
     }
 
@@ -663,6 +868,59 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         // Update the array that stores piece types for each square
         squarePieceType[toSquare] = capturedPieceType;
         squarePieceType[fromSquare] = PieceType::PAWN;
+
+        return;
+    }
+
+    if (moveType == Move::MoveType::CASTLE)
+    {
+        uint8_t rookToSquare = 0, rookFromSquare = 0;
+        uint64_t rookToSquareMask = 0, rookFromSquareMask = 0;
+
+        // Identify the castle move
+        switch (toSquare)
+        {
+        case 2: // White queen side
+            rookFromSquare = 0, rookToSquare = 3;
+            rookFromSquareMask = 1ULL, rookToSquareMask = 1ULL << 3;
+            break;
+
+        case 6: // White king side
+            rookFromSquare = 7, rookToSquare = 5;
+            rookFromSquareMask = 1ULL << 7, rookToSquareMask = 1ULL << 5;
+            break;
+
+        case 58: // Black queen side
+            rookFromSquare = 56, rookToSquare = 59;
+            rookFromSquareMask = 1ULL << 56, rookToSquareMask = 1ULL << 59;
+            break;
+
+        case 62: // Black king side
+            rookFromSquare = 63, rookToSquare = 61;
+            rookFromSquareMask = 1ULL << 63, rookToSquareMask = 1ULL << 61;
+            break;
+        }
+
+        // Move the king back
+        pieces[colorThatMoved][KING] ^= toSquareMask;
+        pieces[colorThatMoved][KING] ^= fromSquareMask;
+        allPieces[colorThatMoved] ^= toSquareMask;
+        allPieces[colorThatMoved] ^= fromSquareMask;
+
+        // Move the rook back
+        pieces[colorThatMoved][ROOK] ^= rookToSquareMask;
+        pieces[colorThatMoved][ROOK] ^= rookFromSquareMask;
+        allPieces[colorThatMoved] ^= rookToSquareMask;
+        allPieces[colorThatMoved] ^= rookFromSquareMask;
+
+        // Update the array that stores piece types for each square
+        squarePieceType[toSquare] = PieceType::NONE;
+        squarePieceType[fromSquare] = PieceType::KING;
+        squarePieceType[rookToSquare] = PieceType::NONE;
+        squarePieceType[rookFromSquare] = PieceType::ROOK;
+
+        // Restore the previous castling rights
+        castlingRights = undoHelper.castlingRights();
 
         return;
     }

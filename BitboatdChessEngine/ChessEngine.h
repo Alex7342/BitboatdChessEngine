@@ -38,7 +38,12 @@ private:
 
     uint64_t pieces[2][6]; // Bitboards for all types of pieces of each color (first index for color, second index for piece type)
     uint64_t allPieces[2]; // Bitboards that hold all pieces of each color
-    
+
+    uint8_t castlingRights; // The 4 least significant bits are used to store castling rights
+    uint8_t whiteCastleQueenSide, whiteCastleKingSide, blackCastleQueenSide, blackCastleKingSide; // Values corresponding to each castling right
+
+    uint64_t squaresBetween[64][64]; // Bitboards containing the squares between two other squares (if they are on the same line or diagonal)
+
     uint64_t pawnPushes[2][64], pawnAttacks[2][64]; // Bitboards for pawn movement
     uint64_t knightMovement[64]; // Bitboards for knight movement
     uint64_t kingMovement[64]; // Bitboards for king movement
@@ -58,6 +63,9 @@ private:
     void initializeBitboards(); // Initialize bitboards with the classic chess setup
     void initializeSquarePieceTypeArray(); // Initialize the array that stores piece type for every square with the classic chess setup
     void initializePromotionPieceToPieceTypeArray(); // Initialize the array that stores the corresponding piece type for every promotion type
+    void initializePositionSpecialStatistics(); // Initialize castling rights, en passant squares, number of moves
+
+    void initializeSquaresBetweenBitboards(); // Initialize the bitboards containing the squares between two other squares
 
     void initializePawnMovesetBitboards(); // Initialize pawn push and attack bitboards
     void initializeKnightMovesetBitboards(); // Initialize knight moveset bitboards
@@ -76,5 +84,5 @@ private:
     void addBishopMoves(const Color color, MoveList& movelist) const; // Add all the bishop moves of the given color to the move list
     void addQueenMoves(const Color color, MoveList& movelist) const; // Add all the queen moves of the given color to the move list
 
-    bool isAttacked(const int square, const Color color);
+    bool isAttacked(const int square, const Color color) const;
 };
