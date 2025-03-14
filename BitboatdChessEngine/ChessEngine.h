@@ -26,7 +26,8 @@ public:
     std::string bitboardToString(const uint64_t bitboard) const;
     std::string getSquareNotation(const int square) const;
 
-    MoveList getMoves(const Color color) const;
+    MoveList getPseudolegalMoves(const Color color) const;
+    MoveList getLegalMoves(const Color color);
 
     void makeMove(const Move move, const Color colorToMove);
     void undoMove(const Color colorThatMoved);

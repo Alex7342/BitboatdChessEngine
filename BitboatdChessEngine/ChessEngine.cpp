@@ -640,7 +640,7 @@ std::string ChessEngine::getSquareNotation(const int square) const
     return std::string(1, file) + std::to_string(rank);
 }
 
-MoveList ChessEngine::getMoves(const Color color) const
+MoveList ChessEngine::getPseudolegalMoves(const Color color) const
 {
     MoveList moveList;
 
@@ -652,6 +652,22 @@ MoveList ChessEngine::getMoves(const Color color) const
     addQueenMoves(color, moveList);
 
     return moveList;
+}
+
+MoveList ChessEngine::getLegalMoves(const Color color)
+{
+    MoveList pseudolegalMoves = getPseudolegalMoves(color);
+    MoveList legalMoves;
+
+    for (int i = 0; i < pseudolegalMoves.numberOfMoves; i++)
+    {
+        makeMove(pseudolegalMoves.moves[i], color);
+        if (!isAttacked(_tzcnt_u64(pieces[color][KING]), static_cast<Color>(color ^ 1)))
+            legalMoves.add(pseudolegalMoves.moves[i]);
+        undoMove(color);
+    }
+
+    return legalMoves;
 }
 
 void ChessEngine::makeMove(const Move move, const Color colorToMove)
@@ -1079,7 +1095,7 @@ unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
     if (depth == 0)
         return 1;
 
-    MoveList movelist = getMoves(colorToMove);
+    MoveList movelist = getPseudolegalMoves(colorToMove);
 
     /*if (depth == 1)
     {
