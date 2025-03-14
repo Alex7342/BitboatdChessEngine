@@ -1,3 +1,3 @@
 #include "UndoHelper.h"
 
-UndoHelper::UndoHelper() : moveData(0) {}
+UndoHelper::UndoHelper() : undoData(0) {}
