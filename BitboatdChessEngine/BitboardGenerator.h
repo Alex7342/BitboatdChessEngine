@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <algorithm>
 
 class BitboardGenerator
 {
@@ -31,6 +32,8 @@ public:
 	static inline uint64_t northWest(const uint64_t square) { return (square << 7) & ~FILE_H; } // Shift square 7 bits left (north-west), mask to avoid wrapping around the right edge
 	static inline uint64_t southEast(const uint64_t square) { return (square >> 7) & ~FILE_A; } // Shift square 7 bits right (south-east), mask to avoid wrapping around the left edge
 	static inline uint64_t southWest(const uint64_t square) { return (square >> 9) & ~FILE_H; } // Shift square 9 bits right (south-west), mask to avoid wrapping around the right edge
+
+	static uint64_t generateSquaresBetween(const int firstSquare, const int secondSquare);
 
 	// Generate a bitboard containing the square the pawn on the given square and color (white = 0, black = 1) can push to
 	static uint64_t generatePawnPush(const uint64_t pawnBitboard, const int color);
