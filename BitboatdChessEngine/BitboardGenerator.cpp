@@ -1,5 +1,67 @@
 #include "BitboardGenerator.h"
 
+uint64_t BitboardGenerator::generateSquaresBetween(const int firstSquare, const int secondSquare)
+{
+	// Check if the squares are equal
+	if (firstSquare == secondSquare)
+		return 0ULL;
+
+	// Check if the squares are on the same rank
+	if (firstSquare / 8 == secondSquare / 8)
+	{
+		int leftSquare = std::min(firstSquare, secondSquare);
+		int rightSquare = std::max(firstSquare, secondSquare);
+		
+		uint64_t squaresInBetween = 0ULL;
+		for (int i = leftSquare + 1; i <= rightSquare - 1; i++)
+			squaresInBetween |= 1ULL << i;
+
+		return squaresInBetween;
+	}
+
+	// Check if the squares are on the same file
+	if (firstSquare % 8 == secondSquare % 8)
+	{
+		int belowSquare = std::min(firstSquare, secondSquare);
+		int aboveSquare = std::max(firstSquare, secondSquare);
+
+		uint64_t squaresInBetween = 0ULL;
+		for (int i = belowSquare + 8; i <= aboveSquare - 8; i += 8)
+			squaresInBetween |= 1ULL << i;
+
+		return squaresInBetween;
+	}
+
+	// Check if the squares are on the same diagonal
+	if ((firstSquare / 8) - (firstSquare % 8) == (secondSquare / 8) - (secondSquare % 8))
+	{
+		int startSquare = std::min(firstSquare, secondSquare);
+		int stopSquare = std::max(firstSquare, secondSquare);
+
+		uint64_t squaresInBetween = 0ULL;
+		for (int i = startSquare + 9; i <= stopSquare - 9; i += 9)
+			squaresInBetween |= 1ULL << i;
+
+		return squaresInBetween;
+	}
+
+	// Check if the squares are on the same anti-diagonal
+	if ((firstSquare / 8) + (firstSquare % 8) == (secondSquare / 8) + (secondSquare % 8))
+	{
+		int startSquare = std::min(firstSquare, secondSquare);
+		int stopSquare = std::max(firstSquare, secondSquare);
+
+		uint64_t squaresInBetween = 0ULL;
+		for (int i = startSquare + 7; i <= stopSquare - 7; i += 7)
+			squaresInBetween |= 1ULL << i;
+
+		return squaresInBetween;
+	}
+
+	// Return no squares in between if the given squares are not on the same line or diagonal
+	return 0ULL;
+}
+
 uint64_t BitboardGenerator::generatePawnPush(const uint64_t pawnBitboard, const int color)
 {
 	if (color == 0)

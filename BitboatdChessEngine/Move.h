@@ -22,6 +22,9 @@ public:
         QUEEN = 3
     };
 
+    // Default constructor
+    Move();
+
     // Constructor
     Move(const int from, const int to, const MoveType moveType = NORMAL, const PromotionPiece promoPiece = KNIGHT) {
         moveData = (from & 0x3F) |           // 6 bits for 'from' square
@@ -43,4 +46,14 @@ public:
     inline uint16_t raw() const { return moveData; }
 
     std::string toString() const;
+};
+
+struct MoveList
+{
+    Move moves[256];
+    short numberOfMoves;
+
+    inline void add(const Move move) { moves[numberOfMoves++] = move; }
+
+    MoveList();
 };
