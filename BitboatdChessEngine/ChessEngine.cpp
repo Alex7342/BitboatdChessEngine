@@ -617,6 +617,43 @@ bool ChessEngine::isAttacked(const int square, const Color color) const
     return false;
 }
 
+int ChessEngine::evaluate() const
+{
+    int result = 0;
+
+    // Add white's score to the result
+    for (int type = 0; type < 6; type++)
+    {
+        uint64_t bitboard = pieces[WHITE][type];
+
+        while (bitboard)
+        {
+            int square = _tzcnt_u64(bitboard);
+
+            result += pieceValue[type] + positionValue[type][square];
+
+            bitboard &= bitboard - 1;
+        }
+    }
+
+    // Subtract black's score from the result
+    for (int type = 0; type < 6; type++)
+    {
+        uint64_t bitboard = pieces[BLACK][type];
+
+        while (bitboard)
+        {
+            int square = 63 - _tzcnt_u64(bitboard);
+
+            result -= pieceValue[type] + positionValue[type][square];
+
+            bitboard &= bitboard - 1;
+        }
+    }
+
+    return result;
+}
+
 std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
     std::string board = "";
     for (int rank = 7; rank >= 0; --rank) {
