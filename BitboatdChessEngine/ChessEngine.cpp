@@ -285,7 +285,7 @@ void ChessEngine::initializeBishopMovesetBitboards()
     }
 }
 
-void ChessEngine::addPawnMoves(const Color color, MoveList& moveList) const
+void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint64_t mask) const
 {
     uint64_t pawns = pieces[color][PAWN];
     uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
@@ -305,31 +305,34 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList) const
         {
             int pushSquare = _tzcnt_u64(pawnPushes[color][square]);
 
-            // Check for promotion possibility
-            if (singlePawnBitboard & promotionRank)
+            if (pawnPushes[color][square] & mask)
             {
-                // Add all possible promotions
-                moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::QUEEN));
-                moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::KNIGHT));
-                moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::ROOK));
-                moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::BISHOP));
-            }
-            else
-            {
-                // Add a normal pawn push
-                moveList.add(Move(square, pushSquare));
+                // Check for promotion possibility
+                if (singlePawnBitboard & promotionRank)
+                {
+                    // Add all possible promotions
+                    moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::QUEEN));
+                    moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::KNIGHT));
+                    moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::ROOK));
+                    moveList.add(Move(square, pushSquare, Move::MoveType::PROMOTION, Move::PromotionPiece::BISHOP));
+                }
+                else
+                {
+                    // Add a normal pawn push
+                    moveList.add(Move(square, pushSquare));
+                }
             }
 
             // Check for double push possibility
             if (singlePawnBitboard & doublePushRank)
             {
-                if (!(pawnPushes[color][pushSquare] & allPiecesOnBoard))
+                if (!(pawnPushes[color][pushSquare] & allPiecesOnBoard) && (pawnPushes[color][pushSquare] & mask))
                     moveList.add(Move(square, _tzcnt_u64(pawnPushes[color][pushSquare])));
             }
         }
 
         // Add pawn attacks
-        uint64_t successfulAttacks = pawnAttacks[color][square] & (allPieces[color ^ 1] & ~pieces[color ^ 1][KING]); // The enemy king can not be captured
+        uint64_t successfulAttacks = (pawnAttacks[color][square] & (allPieces[color ^ 1] & ~pieces[color ^ 1][KING])) & mask; // The enemy king can not be captured
         while (successfulAttacks)
         {
             int attackedSquare = _tzcnt_u64(successfulAttacks);
@@ -361,7 +364,7 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList) const
     }
 }
 
-void ChessEngine::addKnightMoves(const Color color, MoveList& moveList) const
+void ChessEngine::addKnightMoves(const Color color, MoveList& moveList, const uint64_t mask) const
 {
     uint64_t knights = pieces[color][KNIGHT];
 
@@ -371,7 +374,7 @@ void ChessEngine::addKnightMoves(const Color color, MoveList& moveList) const
         int square = _tzcnt_u64(knights);
 
         // Add knight moves (the enemy king can not be captured)
-        uint64_t possibleMoves = knightMovement[square] & ~allPieces[color] & ~pieces[color ^ 1][KING];
+        uint64_t possibleMoves = knightMovement[square] & ~allPieces[color] & ~pieces[color ^ 1][KING] & mask;
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -509,7 +512,7 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
     }
 }
 
-void ChessEngine::addRookMoves(const Color color, MoveList& movelist) const
+void ChessEngine::addRookMoves(const Color color, MoveList& movelist, const uint64_t mask) const
 {
     uint64_t rooks = pieces[color][ROOK];
     uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
@@ -522,6 +525,7 @@ void ChessEngine::addRookMoves(const Color color, MoveList& movelist) const
         // Get the rook moves from the pre-generated movement bitboards (use PEXT to hash the current board)
         uint64_t possibleMoves = rookMovement[rookSquareOffset[square] + _pext_u64(allPiecesOnBoard & rookOccupancyMask[square], rookOccupancyMask[square])];
         possibleMoves &= ~allPieces[color]; // Remove the pieces of the same color from the attack set
+        possibleMoves &= mask; // Only select moves within the mask
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -534,7 +538,7 @@ void ChessEngine::addRookMoves(const Color color, MoveList& movelist) const
     }
 }
 
-void ChessEngine::addBishopMoves(const Color color, MoveList& movelist) const
+void ChessEngine::addBishopMoves(const Color color, MoveList& movelist, const uint64_t mask) const
 {
     uint64_t bishops = pieces[color][BISHOP];
     uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
@@ -547,6 +551,7 @@ void ChessEngine::addBishopMoves(const Color color, MoveList& movelist) const
         // Get the bishop moves from the pre-generated movement bitboards (use PEXT to hash the current board)
         uint64_t possibleMoves = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPiecesOnBoard & bishopOccupancyMask[square], bishopOccupancyMask[square])];
         possibleMoves &= ~allPieces[color]; // Remove the pieces of the same color from the attack set
+        possibleMoves &= mask; // Only select moves within the mask
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -559,7 +564,7 @@ void ChessEngine::addBishopMoves(const Color color, MoveList& movelist) const
     }
 }
 
-void ChessEngine::addQueenMoves(const Color color, MoveList& movelist) const
+void ChessEngine::addQueenMoves(const Color color, MoveList& movelist, const uint64_t mask) const
 {
     uint64_t queens = pieces[color][QUEEN];
     uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
@@ -576,6 +581,7 @@ void ChessEngine::addQueenMoves(const Color color, MoveList& movelist) const
 
         // Combine the rook and bishop moves and remove own pieces from attack set
         uint64_t possibleMoves = (possibleRookMoves | possibleBishopMoves) & ~allPieces[color];
+        possibleMoves &= mask; // Only select moves within the mask
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -602,7 +608,7 @@ bool ChessEngine::isAttacked(const int square, const Color color) const
     if (kingMovement[square] & pieces[color][KING])
         return true;
 
-    uint64_t allPieces = this->allPieces[WHITE] + this->allPieces[BLACK];
+    uint64_t allPieces = this->allPieces[WHITE] | this->allPieces[BLACK];
 
     // Check for rook attacks (queens included)
     uint64_t rookAttacks = rookMovement[rookSquareOffset[square] + _pext_u64(allPieces & rookOccupancyMask[square], rookOccupancyMask[square])];
@@ -615,6 +621,76 @@ bool ChessEngine::isAttacked(const int square, const Color color) const
         return true;
 
     return false;
+}
+
+uint64_t ChessEngine::getAttacksBitboard(const int square, const Color color) const
+{
+    // Get the other color
+    const Color otherColor = static_cast<Color>(color ^ 1);
+
+    // Bitboard of the attacking squares
+    uint64_t attackingSquares = 0ULL;
+
+    // Count pawn attacks
+    attackingSquares |= (pawnAttacks[otherColor][square] & pieces[color][PAWN]);
+    if ((attackingSquares & (attackingSquares - 1))) // Check if there are 2 attacks already (this is the maximum number of attacks)
+        return attackingSquares;
+
+    // Count knight attacks
+    attackingSquares |= (knightMovement[square] & pieces[color][KNIGHT]);
+    if ((attackingSquares & (attackingSquares - 1))) // Check if there are 2 attacks already (this is the maximum number of attacks)
+        return attackingSquares;
+
+    uint64_t allPieces = this->allPieces[WHITE] | this->allPieces[BLACK];
+
+    // Count rook attacks (queens included)
+    uint64_t rookAttacks = rookMovement[rookSquareOffset[square] + _pext_u64(allPieces & rookOccupancyMask[square], rookOccupancyMask[square])];
+    attackingSquares |= (rookAttacks & (pieces[color][ROOK] | pieces[color][QUEEN]));
+    if ((attackingSquares & (attackingSquares - 1))) // Check if there are 2 attacks already (this is the maximum number of attacks)
+        return attackingSquares;
+
+    // Count attacks (queens included)
+    uint64_t bishopAttacks = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPieces & bishopOccupancyMask[square], bishopOccupancyMask[square])];
+    attackingSquares |= (bishopAttacks & (pieces[color][BISHOP] | pieces[color][QUEEN]));
+    if ((attackingSquares & (attackingSquares - 1))) // Check if there are 2 attacks already (this is the maximum number of attacks)
+        return attackingSquares;
+
+    return attackingSquares;
+}
+
+MoveList ChessEngine::getPseudolegalMovesInCheck(const Color color, const uint64_t attackingSquares) const
+{
+    MoveList movelist;
+    int kingSquare = _tzcnt_u64(pieces[color][KING]);
+
+    if ((attackingSquares & (attackingSquares - 1)) == 0) // Only one piece attacking the king
+    {
+        // Generate moves that block the attack or capture the attacker
+        int attackingSquare = _tzcnt_u64(attackingSquares);
+        uint64_t mask = squaresBetween[kingSquare][attackingSquare] | attackingSquares;
+
+        addKingMoves(color, movelist);
+        addPawnMoves(color, movelist, mask);
+        addKnightMoves(color, movelist, mask);
+        addRookMoves(color, movelist, mask);
+        addBishopMoves(color, movelist, mask);
+        addQueenMoves(color, movelist, mask);
+
+        return movelist;
+    }
+    else // Two pieces attacking the king
+    {
+        // Generate only king moves (no castle)
+        uint64_t possibleMoves = kingMovement[kingSquare] & ~allPieces[color] & ~pieces[color ^ 1][KING];
+        while (possibleMoves)
+        {
+            int escapeSquare = _tzcnt_u64(possibleMoves);
+            movelist.add(Move(kingSquare, escapeSquare));
+            possibleMoves &= possibleMoves - 1;
+        }
+    }
+
+    return movelist;
 }
 
 int ChessEngine::evaluate() const
@@ -701,8 +777,9 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
     if (depth == 0)
         return SearchResult(evaluate());
 
-    MoveList moves = getPseudolegalMoves(colorToMove);
-
+    uint64_t squaresAttackingKing = getAttacksBitboard(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1));
+    MoveList moves = squaresAttackingKing ? getPseudolegalMovesInCheck(colorToMove, squaresAttackingKing) : getPseudolegalMoves(colorToMove);
+    
     if (colorToMove == Color::WHITE)
     {
         SearchResult result(INT_MIN);
@@ -732,6 +809,14 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
             }
 
             undoMove(colorToMove);
+        }
+
+        if (result.score == INT_MIN) // No legal move found
+        {
+            if (squaresAttackingKing) // If the king is in check then it is checkmate
+                result.score = CHECKMATE_SCORE[colorToMove];
+            else // If the king is not in check them it is stalemate
+                result.score = 0;
         }
 
         return result;
@@ -765,6 +850,14 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
             }
 
             undoMove(colorToMove);
+        }
+
+        if (result.score == INT_MAX) // No legal move found
+        {
+            if (squaresAttackingKing) // If the king is in check then it is checkmate
+                result.score = CHECKMATE_SCORE[colorToMove];
+            else // If the king is not in check them it is stalemate
+                result.score = 0;
         }
 
         return result;
@@ -1248,7 +1341,8 @@ unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
     if (depth == 0)
         return 1;
 
-    MoveList movelist = getPseudolegalMoves(colorToMove);
+    uint64_t squaresAttackingKing = getAttacksBitboard(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1));
+    MoveList movelist = squaresAttackingKing ? getPseudolegalMovesInCheck(colorToMove, squaresAttackingKing) : getPseudolegalMoves(colorToMove);
 
     /*if (depth == 1)
     {

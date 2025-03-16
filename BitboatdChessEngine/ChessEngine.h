@@ -92,20 +92,25 @@ private:
     void initializeBishopOccupancyMasks(); // Initialize bishop occupancy masks
     void initializeBishopMovesetBitboards(); // Initialize bishop moveset bitboards
 
-    void addPawnMoves(const Color color, MoveList& moveList) const; // Add all the pawn moves of the given color to the move list
-    void addKnightMoves(const Color color, MoveList& moveList) const; // Add all the knight moves of the given color to the move list
+    void addPawnMoves(const Color color, MoveList& moveList, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the pawn moves of the given color (within the mask) to the move list
+    void addKnightMoves(const Color color, MoveList& moveList, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the knight moves of the given color (within the mask) to the move list
     void addKingMoves(const Color color, MoveList& movelist) const; // Add all the king moves of the given color to the move list
-    void addRookMoves(const Color color, MoveList& movelist) const; // Add all the rook moves of the given color to the move list
-    void addBishopMoves(const Color color, MoveList& movelist) const; // Add all the bishop moves of the given color to the move list
-    void addQueenMoves(const Color color, MoveList& movelist) const; // Add all the queen moves of the given color to the move list
+    void addRookMoves(const Color color, MoveList& movelist, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the rook moves of the given color (within the mask) to the move list
+    void addBishopMoves(const Color color, MoveList& movelist, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the bishop moves of the given color (within the mask) to the move list
+    void addQueenMoves(const Color color, MoveList& movelist, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the queen moves of the given color (within the mask) to the move list
 
     bool isAttacked(const int square, const Color color) const; // Returns true if the given square is attacked by the given color, false otherwise
-	
+	uint64_t getAttacksBitboard(const int square, const Color color) const; // Returns the number of attacks the given color has on the given square
+
+	MoveList getPseudolegalMovesInCheck(const Color color, const uint64_t attackingSquares) const; // Get the pseudolegal moves of the given color when in check (checked by the attacking squares)
+
 	int evaluate() const; // Compute an evaluation of the current state of the board. Positive values favour white, negative values favour black.
 	
 	SearchResult negamax(int alpha, int beta, const int depth, const Color colorToMove); // Negamax algorithm with alpha beta pruning
 	SearchResult minimax(int alpha, int beta, const int depth, const Color colorToMove); // Minimax algorithm with alpha beta pruning
 };
+
+constexpr int CHECKMATE_SCORE[2] = { SHRT_MIN, SHRT_MAX };
 
 constexpr int pieceValue[6] =
 {
@@ -114,7 +119,7 @@ constexpr int pieceValue[6] =
 	330,	// Bishop
 	500,	// Rook
 	900,	// Queen
-	20000   // King
+	0   // King
 };
 
 // Table describing positional value of each piece type
