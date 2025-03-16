@@ -654,6 +654,123 @@ int ChessEngine::evaluate() const
     return result;
 }
 
+ChessEngine::SearchResult ChessEngine::negamax(int alpha, int beta, const int depth, const Color colorToMove)
+{
+    if (depth == 0)
+    {
+        int color = colorToMove == Color::WHITE ? 1 : -1;
+        return SearchResult(evaluate() * color);
+    }
+
+    SearchResult result(INT_MIN);
+
+    MoveList moves = getPseudolegalMoves(colorToMove);
+    for (int i = 0; i < moves.numberOfMoves; i++)
+    {
+        makeMove(moves.moves[i], colorToMove);
+
+        // Check if the move is legal
+        if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
+        {
+            SearchResult moveResult(moves.moves[i], -negamax(-beta, -alpha, depth - 1, static_cast<Color>(colorToMove ^ 1)).score);
+            
+            if (moveResult.score > result.score)
+            {
+                result = moveResult;
+
+                if (moveResult.score > alpha)
+                    alpha = moveResult.score;
+            }
+
+            // TODO Fix alpha beta pruning
+            if (moveResult.score >= beta)
+            {
+                undoMove(colorToMove);
+                return result;
+            }
+        }
+
+        undoMove(colorToMove);
+    }
+
+    return result;
+}
+
+ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int depth, const Color colorToMove)
+{
+    if (depth == 0)
+        return SearchResult(evaluate());
+
+    MoveList moves = getPseudolegalMoves(colorToMove);
+
+    if (colorToMove == Color::WHITE)
+    {
+        SearchResult result(INT_MIN);
+
+        for (int i = 0; i < moves.numberOfMoves; i++)
+        {
+            makeMove(moves.moves[i], colorToMove);
+
+            // Check if the move is legal
+            if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
+            {
+                SearchResult moveResult(moves.moves[i], minimax(alpha, beta, depth - 1, Color::BLACK).score);
+
+                if (moveResult.score > result.score)
+                {
+                    result = moveResult;
+
+                    if (moveResult.score > alpha)
+                        alpha = moveResult.score;
+                }
+                
+                if (moveResult.score >= beta)
+                {
+                    undoMove(colorToMove);
+                    return result;
+                }
+            }
+
+            undoMove(colorToMove);
+        }
+
+        return result;
+    }
+    else
+    {
+        SearchResult result(INT_MAX);
+
+        for (int i = 0; i < moves.numberOfMoves; i++)
+        {
+            makeMove(moves.moves[i], colorToMove);
+
+            // Check if the move is legal
+            if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
+            {
+                SearchResult moveResult(moves.moves[i], minimax(alpha, beta, depth - 1, Color::WHITE).score);
+
+                if (moveResult.score < result.score)
+                {
+                    result = moveResult;
+
+                    if (moveResult.score < beta)
+                        beta = moveResult.score;
+                }
+
+                if (moveResult.score <= alpha)
+                {
+                    undoMove(colorToMove);
+                    return result;
+                }
+            }
+
+            undoMove(colorToMove);
+        }
+
+        return result;
+    }
+}
+
 std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
     std::string board = "";
     for (int rank = 7; rank >= 0; --rank) {
@@ -1085,7 +1202,6 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         return;
     }
 
-    // TODO Implement en passant and castle handling
     if (moveType == Move::MoveType::EN_PASSANT)
     {
         // Move the pawn back
@@ -1158,4 +1274,10 @@ unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
     }
 
     return result;
+}
+
+ChessEngine::SearchResult ChessEngine::search(const int depth, const Color colorToMove)
+{
+    //return negamax(INT_MIN, INT_MAX, depth, colorToMove);
+    return minimax(INT_MIN, INT_MAX, depth, colorToMove);
 }

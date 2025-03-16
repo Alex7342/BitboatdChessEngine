@@ -17,6 +17,16 @@ public:
         WHITE, BLACK
     };
 
+	struct SearchResult
+	{
+		Move move;
+		int score;
+
+		SearchResult() : move(Move()), score(0) {}
+		SearchResult(const Move move, const int score) : move(move), score(score) {}
+		SearchResult(const int score) : move(Move()), score(score) {}
+	};
+
     ChessEngine(); // Chess engine constructor
 
     void loadFENPosition(const std::string position); // Load a chess position from a FEN string
@@ -33,6 +43,8 @@ public:
     void undoMove(const Color colorThatMoved); // Undo the last move, color of the player that moved required
 
     unsigned long long perft(const int depth, const Color colorToMove); // Perft of a given depth starting with a given color
+
+	SearchResult search(const int depth, const Color colorToMove); // Search for the best move of the given color by going to the given depth in the game tree
 
 private:
     PieceType squarePieceType[64]; // Array that stores the piece type of each square
@@ -90,6 +102,9 @@ private:
     bool isAttacked(const int square, const Color color) const; // Returns true if the given square is attacked by the given color, false otherwise
 	
 	int evaluate() const; // Compute an evaluation of the current state of the board. Positive values favour white, negative values favour black.
+	
+	SearchResult negamax(int alpha, int beta, const int depth, const Color colorToMove); // Negamax algorithm with alpha beta pruning
+	SearchResult minimax(int alpha, int beta, const int depth, const Color colorToMove); // Minimax algorithm with alpha beta pruning
 };
 
 constexpr int pieceValue[6] =
