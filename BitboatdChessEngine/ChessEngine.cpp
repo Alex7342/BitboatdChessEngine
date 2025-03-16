@@ -693,6 +693,23 @@ MoveList ChessEngine::getPseudolegalMovesInCheck(const Color color, const uint64
     return movelist;
 }
 
+bool ChessEngine::compareMoves(const Move firstMove, const Move secondMove) const
+{
+    if (pieceValue[squarePieceType[firstMove.to()]] > pieceValue[squarePieceType[secondMove.to()]])
+        return true;
+
+    if (pieceValue[squarePieceType[firstMove.to()]] == pieceValue[squarePieceType[secondMove.to()]])
+        if (pieceValue[squarePieceType[firstMove.from()]] < pieceValue[squarePieceType[secondMove.from()]])
+            return true;
+
+    return false;
+}
+
+void ChessEngine::sortMoves(MoveList& movelist) const
+{
+    std::sort(movelist.moves, movelist.moves + movelist.numberOfMoves, [&](const Move& a, const Move& b) { return this->compareMoves(a, b); });
+}
+
 int ChessEngine::evaluate() const
 {
     int result = 0;
@@ -779,6 +796,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
 
     uint64_t squaresAttackingKing = getAttacksBitboard(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1));
     MoveList moves = squaresAttackingKing ? getPseudolegalMovesInCheck(colorToMove, squaresAttackingKing) : getPseudolegalMoves(colorToMove);
+    sortMoves(moves);
     
     if (colorToMove == Color::WHITE)
     {

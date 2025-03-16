@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include <stack>
+#include <algorithm>
 #include <immintrin.h>
 #include "BitboardGenerator.h"
 #include "Move.h"
@@ -103,6 +104,9 @@ private:
 	uint64_t getAttacksBitboard(const int square, const Color color) const; // Returns the number of attacks the given color has on the given square
 
 	MoveList getPseudolegalMovesInCheck(const Color color, const uint64_t attackingSquares) const; // Get the pseudolegal moves of the given color when in check (checked by the attacking squares)
+
+	bool compareMoves(const Move firstMove, const Move secondMove) const; // Compare two moves using MVV-LVA
+	void sortMoves(MoveList& movelist) const; // Sort the move list using MVV-LVA
 
 	int evaluate() const; // Compute an evaluation of the current state of the board. Positive values favour white, negative values favour black.
 	
