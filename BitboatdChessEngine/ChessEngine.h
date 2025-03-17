@@ -3,6 +3,7 @@
 #include <string>
 #include <stack>
 #include <algorithm>
+#include <chrono>
 #include <immintrin.h>
 #include "BitboardGenerator.h"
 #include "Move.h"
@@ -46,6 +47,10 @@ public:
     unsigned long long perft(const int depth, const Color colorToMove); // Perft of a given depth starting with a given color
 
 	SearchResult search(const int depth, const Color colorToMove); // Search for the best move of the given color by going to the given depth in the game tree
+	SearchResult iterativeDeepeningSearch(const Color colorToMove, const int timeLimit); // Ssearch for the best move of the given color within the time limit (in milliseconds)
+	std::chrono::steady_clock::time_point searchStartTime; // The time the search started
+	int timeLimitInMilliseconds; // The time allocated to the search in milliseconds
+	bool stopSearch; // Flag set to true when the time limit is exceeded
 
 private:
     PieceType squarePieceType[64]; // Array that stores the piece type of each square

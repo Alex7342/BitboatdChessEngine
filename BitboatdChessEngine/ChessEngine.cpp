@@ -791,6 +791,14 @@ ChessEngine::SearchResult ChessEngine::negamax(int alpha, int beta, const int de
 
 ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int depth, const Color colorToMove)
 {
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - this->searchStartTime).count();
+    if (duration >= this->timeLimitInMilliseconds)
+    {
+        this->stopSearch = true;
+        return SearchResult();
+    }
+
     if (depth == 0)
         return SearchResult(evaluate());
 
@@ -1392,4 +1400,30 @@ ChessEngine::SearchResult ChessEngine::search(const int depth, const Color color
 {
     //return negamax(INT_MIN, INT_MAX, depth, colorToMove);
     return minimax(INT_MIN, INT_MAX, depth, colorToMove);
+}
+
+ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const Color colorToMove, const int timeLimit)
+{
+    this->searchStartTime = std::chrono::high_resolution_clock::now();
+    this->timeLimitInMilliseconds = timeLimit;
+    this->stopSearch = false;
+    SearchResult bestMove;
+
+    for (int depth = 1; /*TODO Choose depth limit */!this->stopSearch; depth++)
+    {
+        auto start = std::chrono::high_resolution_clock::now();
+        SearchResult result = this->minimax(INT_MIN, INT_MAX, depth, colorToMove);
+        auto stop = std::chrono::high_resolution_clock::now();
+
+        if (!this->stopSearch)
+        {
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+            std::cout << "Depth " << depth << " reached in " << duration << "ms.\n";
+        }
+
+        if (!this->stopSearch)
+            bestMove = result;
+    }
+
+    return bestMove;
 }
