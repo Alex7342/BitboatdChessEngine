@@ -998,6 +998,9 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         pieces[colorToMove][movingPieceType] ^= toSquareMask;
         allPieces[colorToMove] ^= fromSquareMask;
         allPieces[colorToMove] ^= toSquareMask;
+        // Update zobrist hash for the moving piece
+        boardZobristHash ^= pieceZobristHash[movingPieceType][fromSquare];
+        boardZobristHash ^= pieceZobristHash[movingPieceType][toSquare];
 
         // Find captured piece type
         PieceType capturedPieceType = squarePieceType[toSquare];
@@ -1005,6 +1008,8 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Push the changes to the undo stack
         undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, capturedPieceType));
 
+        // Update zobrist hash for en passant target square
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
 
@@ -1014,21 +1019,33 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
             pieces[colorToMove ^ 1][capturedPieceType] ^= toSquareMask;
             allPieces[colorToMove ^ 1] ^= toSquareMask;
 
+            // Update zobrist hash for captured piece
+            boardZobristHash ^= pieceZobristHash[capturedPieceType][toSquare];
+
             if (capturedPieceType == PieceType::ROOK)
             {
                 switch (toSquare)
                 {
                 case 0:
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     castlingRights &= ~whiteCastleQueenSide;
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     break;
                 case 7:
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     castlingRights &= ~whiteCastleKingSide;
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     break;
                 case 56:
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     castlingRights &= ~blackCastleQueenSide;
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     break;
                 case 63:
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     castlingRights &= ~blackCastleKingSide;
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
+                    break;
                 }
             }
         }
@@ -1041,31 +1058,50 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         if (movingPieceType == KING)
         {
             if (colorToMove == Color::WHITE)
+            {
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 castlingRights &= ~(whiteCastleQueenSide | whiteCastleKingSide);
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
+            }
             else if (colorToMove == Color::BLACK)
+            {
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 castlingRights &= ~(blackCastleQueenSide | blackCastleKingSide);
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
+            }
         }
         else if (movingPieceType == ROOK)
         {
             switch (fromSquare)
             {
             case 0:
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 castlingRights &= ~whiteCastleQueenSide;
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 break;
             case 7:
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 castlingRights &= ~whiteCastleKingSide;
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 break;
             case 56:
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 castlingRights &= ~blackCastleQueenSide;
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 break;
             case 63:
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 castlingRights &= ~blackCastleKingSide;
+                boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
+                break;
             }
         }
         // Update en passant square if a pawn makes a double push
         else if (movingPieceType == PAWN && squaresBetween[fromSquare][toSquare])
         {
+            if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
             enPassantTargetBitboard = squaresBetween[fromSquare][toSquare];
+            if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         }
 
         return;
@@ -1081,6 +1117,9 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         pieces[colorToMove][promotionType] ^= toSquareMask;
         allPieces[colorToMove] ^= fromSquareMask;
         allPieces[colorToMove] ^= toSquareMask;
+        // Update zobrist hash for the promoting pawn
+        boardZobristHash ^= pieceZobristHash[PAWN][fromSquare];
+        boardZobristHash ^= pieceZobristHash[promotionType][toSquare];
 
         // Find captured piece type
         PieceType capturedPieceType = squarePieceType[toSquare];
@@ -1088,6 +1127,8 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Push the changes to the undo stack
         undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, capturedPieceType));
 
+        // Update zobrist hash for en passant target square
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
 
@@ -1097,21 +1138,33 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
             pieces[colorToMove ^ 1][capturedPieceType] ^= toSquareMask;
             allPieces[colorToMove ^ 1] ^= toSquareMask;
 
+            // Update zobrist hash for captured piece
+            boardZobristHash ^= pieceZobristHash[capturedPieceType][toSquare];
+
             if (capturedPieceType == PieceType::ROOK)
             {
                 switch (toSquare)
                 {
                 case 0:
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     castlingRights &= ~whiteCastleQueenSide;
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     break;
                 case 7:
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     castlingRights &= ~whiteCastleKingSide;
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     break;
                 case 56:
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     castlingRights &= ~blackCastleQueenSide;
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     break;
                 case 63:
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                     castlingRights &= ~blackCastleKingSide;
+                    boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
+                    break;
                 }
             }
         }
@@ -1128,6 +1181,8 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Push the changes to the undo stack
         undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, PieceType::NONE));
 
+        // Update zobrist hash for en passant target square
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
 
@@ -1140,25 +1195,33 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         case 2: // White queen side
             rookFromSquare = 0, rookToSquare = 3;
             rookFromSquareMask = 1ULL, rookToSquareMask = 1ULL << 3;
+            boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
             castlingRights &= ~(whiteCastleQueenSide | whiteCastleKingSide);
+            boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
             break;
 
         case 6: // White king side
             rookFromSquare = 7, rookToSquare = 5;
             rookFromSquareMask = 1ULL << 7, rookToSquareMask = 1ULL << 5;
+            boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
             castlingRights &= ~(whiteCastleQueenSide | whiteCastleKingSide);
+            boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
             break;
 
         case 58: // Black queen side
             rookFromSquare = 56, rookToSquare = 59;
             rookFromSquareMask = 1ULL << 56, rookToSquareMask = 1ULL << 59;
+            boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
             castlingRights &= ~(blackCastleQueenSide | blackCastleKingSide);
+            boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
             break;
 
         case 62: // Black king side
             rookFromSquare = 63, rookToSquare = 61;
             rookFromSquareMask = 1ULL << 63, rookToSquareMask = 1ULL << 61;
+            boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
             castlingRights &= ~(blackCastleQueenSide | blackCastleKingSide);
+            boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
             break;
         }
 
@@ -1167,12 +1230,18 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         pieces[colorToMove][KING] ^= toSquareMask;
         allPieces[colorToMove] ^= fromSquareMask;
         allPieces[colorToMove] ^= toSquareMask;
+        // Update zobrist hash for the moving king
+        boardZobristHash ^= pieceZobristHash[KING][fromSquare];
+        boardZobristHash ^= pieceZobristHash[KING][toSquare];
 
         // Move the rook
         pieces[colorToMove][ROOK] ^= rookFromSquareMask;
         pieces[colorToMove][ROOK] ^= rookToSquareMask;
         allPieces[colorToMove] ^= rookFromSquareMask;
         allPieces[colorToMove] ^= rookToSquareMask;
+        // Update zobrist hash for the moving rook
+        boardZobristHash ^= pieceZobristHash[ROOK][rookFromSquare];
+        boardZobristHash ^= pieceZobristHash[ROOK][rookToSquare];
 
         // Update the array that stores piece types for each square
         squarePieceType[fromSquare] = PieceType::NONE;
@@ -1190,10 +1259,15 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         pieces[colorToMove][PAWN] ^= toSquareMask;
         allPieces[colorToMove] ^= fromSquareMask;
         allPieces[colorToMove] ^= toSquareMask;
+        // Update zobrist hash for the moving pawn
+        boardZobristHash ^= pieceZobristHash[PAWN][fromSquare];
+        boardZobristHash ^= pieceZobristHash[PAWN][toSquare];
 
         // Push the changes to the undo stack
         undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, PieceType::PAWN));
 
+        // Update zobrist hash for en passant target square
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
 
@@ -1216,6 +1290,8 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Capture the enemy pawn
         pieces[colorToMove ^ 1][PAWN] ^= capturedPawnMask;
         allPieces[colorToMove ^ 1] ^= capturedPawnMask;
+        // Update the zobrist hash for the captured pawn
+        boardZobristHash ^= pieceZobristHash[PAWN][capturedPawnSquare];
 
         // Update the array that stores piece types for each square
         squarePieceType[fromSquare] = PieceType::NONE;
@@ -1249,6 +1325,9 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         pieces[colorThatMoved][movingPieceType] ^= fromSquareMask;
         allPieces[colorThatMoved] ^= toSquareMask;
         allPieces[colorThatMoved] ^= fromSquareMask;
+        // Updated the zobrist hash for the moving piece
+        boardZobristHash ^= pieceZobristHash[movingPieceType][toSquare];
+        boardZobristHash ^= pieceZobristHash[movingPieceType][fromSquare];
 
         // Find captured piece type
         PieceType capturedPieceType = static_cast<PieceType>(undoHelper.capturedPieceType());
@@ -1258,15 +1337,24 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         {
             pieces[colorThatMoved ^ 1][capturedPieceType] ^= toSquareMask;
             allPieces[colorThatMoved ^ 1] ^= toSquareMask;
+
+            // Update the zobrist hash for the captured piece
+            boardZobristHash ^= pieceZobristHash[capturedPieceType][toSquare];
         }
 
         // Update the array that stores piece types for each square
         squarePieceType[toSquare] = capturedPieceType;
         squarePieceType[fromSquare] = movingPieceType;
 
-        // Restore the previous castling rights and en passant target bitboard
+        // Restore the previous castling rights
+        boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
         castlingRights = undoHelper.castlingRights();
+        boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
+
+        // Restore the previous en passant target bitboard
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
         return;
     }
@@ -1281,6 +1369,9 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         pieces[colorThatMoved][PAWN] ^= fromSquareMask;
         allPieces[colorThatMoved] ^= toSquareMask;
         allPieces[colorThatMoved] ^= fromSquareMask;
+        // Update the zobrist hash for the pawn that promoted
+        boardZobristHash ^= pieceZobristHash[movingPieceType][toSquare];
+        boardZobristHash ^= pieceZobristHash[PAWN][fromSquare];
 
         // Find captured piece type
         PieceType capturedPieceType = static_cast<PieceType>(undoHelper.capturedPieceType());
@@ -1290,15 +1381,24 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         {
             pieces[colorThatMoved ^ 1][capturedPieceType] ^= toSquareMask;
             allPieces[colorThatMoved ^ 1] ^= toSquareMask;
+
+            // Update the zobrist hash for the captured piece
+            boardZobristHash ^= pieceZobristHash[capturedPieceType][toSquare];
         }
 
         // Update the array that stores piece types for each square
         squarePieceType[toSquare] = capturedPieceType;
         squarePieceType[fromSquare] = PieceType::PAWN;
 
-        // Restore the previous castling rights and en passant target bitboard
+        // Restore the previous castling rights
+        boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
         castlingRights = undoHelper.castlingRights();
+        boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
+
+        // Restore the previous en passant target bitboard
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
         return;
     }
@@ -1337,12 +1437,18 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         pieces[colorThatMoved][KING] ^= fromSquareMask;
         allPieces[colorThatMoved] ^= toSquareMask;
         allPieces[colorThatMoved] ^= fromSquareMask;
+        // Update the zobrist hash for the king that moved
+        boardZobristHash ^= pieceZobristHash[KING][toSquare];
+        boardZobristHash ^= pieceZobristHash[KING][fromSquare];
 
         // Move the rook back
         pieces[colorThatMoved][ROOK] ^= rookToSquareMask;
         pieces[colorThatMoved][ROOK] ^= rookFromSquareMask;
         allPieces[colorThatMoved] ^= rookToSquareMask;
         allPieces[colorThatMoved] ^= rookFromSquareMask;
+        // Update the zobrist hash for the rook that moved
+        boardZobristHash ^= pieceZobristHash[ROOK][rookToSquare];
+        boardZobristHash ^= pieceZobristHash[ROOK][rookFromSquare];
 
         // Update the array that stores piece types for each square
         squarePieceType[toSquare] = PieceType::NONE;
@@ -1350,9 +1456,15 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         squarePieceType[rookToSquare] = PieceType::NONE;
         squarePieceType[rookFromSquare] = PieceType::ROOK;
 
-        // Restore the previous castling rights and en passant target bitboard
+        // Restore the previous castling rights
+        boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
         castlingRights = undoHelper.castlingRights();
+        boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
+
+        // Restore the previous en passant target bitboard
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
         return;
     }
@@ -1364,6 +1476,9 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         pieces[colorThatMoved][PAWN] ^= fromSquareMask;
         allPieces[colorThatMoved] ^= toSquareMask;
         allPieces[colorThatMoved] ^= fromSquareMask;
+        // Update the zobrist hash for the pawn that moved
+        boardZobristHash ^= pieceZobristHash[PAWN][toSquare];
+        boardZobristHash ^= pieceZobristHash[PAWN][fromSquare];
 
         // Compute the captured pawn coordinates
         int capturedPawnSquare = 0;
@@ -1384,15 +1499,23 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         // Revert the capture of the enemy pawn
         pieces[colorThatMoved ^ 1][PAWN] ^= capturedPawnMask;
         allPieces[colorThatMoved ^ 1] ^= capturedPawnMask;
+        // Update the zobrist hash for the pawn that was captured
+        boardZobristHash ^= pieceZobristHash[PAWN][capturedPawnSquare];
 
         // Update the array that stores piece types for each square
         squarePieceType[fromSquare] = PieceType::PAWN;
         squarePieceType[toSquare] = PieceType::NONE;
         squarePieceType[capturedPawnSquare] = PieceType::PAWN;
 
-        // Restore the previous castling rights and en passant target bitboard
+        // Restore the previous castling rights
+        boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
         castlingRights = undoHelper.castlingRights();
+        boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
+
+        // Restore the previous en passant target bitboard
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
         return;
     }
@@ -1462,4 +1585,9 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const Color colo
     }
 
     return bestMove;
+}
+
+uint64_t ChessEngine::getZobristHash() const
+{
+    return this->boardZobristHash;
 }

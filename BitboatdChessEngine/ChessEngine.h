@@ -53,6 +53,8 @@ public:
 	int timeLimitInMilliseconds; // The time allocated to the search in milliseconds
 	bool stopSearch; // Flag set to true when the time limit is exceeded
 
+	uint64_t getZobristHash() const; // Get the zobrist hash for the current state of the board
+
 private:
     PieceType squarePieceType[64]; // Array that stores the piece type of each square
 
