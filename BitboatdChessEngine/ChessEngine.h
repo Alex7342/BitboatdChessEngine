@@ -4,6 +4,7 @@
 #include <stack>
 #include <algorithm>
 #include <chrono>
+#include <random>
 #include <immintrin.h>
 #include "BitboardGenerator.h"
 #include "Move.h"
@@ -79,12 +80,19 @@ private:
 
     PieceType promotionPieceToPieceType[4]; // Get the corresponding piece type from an encoded promotion piece
 
+	uint64_t pieceZobristHash[6][64]; // Zobrist hash for each piece type on every square of the board
+	uint64_t castlingRightsZobristHash[16]; // Zobrist hash for each possible combination of castling rights
+	uint64_t enPassantTargetSquareZobristHash[64]; // Zobrist hash for each en passant target square
+	uint64_t changePlayerZobristHash; // Zobrist hash for changing the active player
+	uint64_t boardZobristHash; // The zobrist hash for the current state of the board
+
     std::stack<UndoHelper> undoStack; // Stack information about every move (for undo purposes)
 
     void initializeBitboards(); // Initialize bitboards with the classic chess setup
     void initializeSquarePieceTypeArray(); // Initialize the array that stores piece type for every square with the classic chess setup
     void initializePromotionPieceToPieceTypeArray(); // Initialize the array that stores the corresponding piece type for every promotion type
     void initializePositionSpecialStatistics(); // Initialize castling rights, en passant squares, number of moves
+	void initializeZobristHash(); // Initialize zobrist hashes
 
     void initializeSquaresBetweenBitboards(); // Initialize the bitboards containing the squares between two other squares
 

@@ -6,6 +6,7 @@ ChessEngine::ChessEngine() {
     initializeSquarePieceTypeArray();
     initializePromotionPieceToPieceTypeArray();
     initializePositionSpecialStatistics();
+    initializeZobristHash();
 }
 
 void ChessEngine::loadFENPosition(const std::string position)
@@ -161,6 +162,41 @@ void ChessEngine::initializePositionSpecialStatistics()
     enPassantTargetBitboard = 0ULL;
 
     // TODO Initialize 50 move rule, etc
+}
+
+void ChessEngine::initializeZobristHash()
+{
+    std::random_device randomDevice;
+    std::mt19937_64 generator(randomDevice());
+    std::uniform_int_distribution<uint64_t> distribution(0, UINT64_MAX);
+
+    // Piece zobrist hashes
+    for (int type = 0; type < 6; type++)
+        for (int square = 0; square < 64; square++)
+            this->pieceZobristHash[type][square] = distribution(generator);
+
+    // Castling rights zobrist hashes
+    for (int i = 0; i < 16; i++)
+        this->castlingRightsZobristHash[i] = distribution(generator);
+
+    // En passant zobrist hashes
+    for (int square = 0; square < 64; square++)
+        this->enPassantTargetSquareZobristHash[square] = distribution(generator);
+
+
+    // Total board zobrist hash
+    this->boardZobristHash = 0ULL;
+    
+    // Add pieces
+    for (int square = 0; square < 64; square++)
+        this->boardZobristHash ^= this->pieceZobristHash[squarePieceType[square]][square];
+
+    // Add castling rights
+    this->boardZobristHash ^= this->castlingRightsZobristHash[this->castlingRights];
+
+    // Add en passant square
+    if (this->enPassantTargetBitboard)
+        this->boardZobristHash ^= this->enPassantTargetSquareZobristHash[_tzcnt_u64(this->enPassantTargetBitboard)];
 }
 
 void ChessEngine::initializeSquaresBetweenBitboards()
