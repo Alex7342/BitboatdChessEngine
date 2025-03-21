@@ -7,6 +7,13 @@ ChessEngine::ChessEngine() {
     initializePromotionPieceToPieceTypeArray();
     initializePositionSpecialStatistics();
     initializeZobristHash();
+    this->transpositionTable = new TranspositionTableEntry[this->transpositionTableSize];
+    this->activePlayer = Color::WHITE;
+}
+
+ChessEngine::~ChessEngine()
+{
+    delete[] transpositionTable;
 }
 
 void ChessEngine::loadFENPosition(const std::string position)
@@ -729,6 +736,238 @@ MoveList ChessEngine::getPseudolegalMovesInCheck(const Color color, const uint64
     return movelist;
 }
 
+bool ChessEngine::isValid(const Move move)
+{
+    // Extract move information
+    uint8_t toSquare = move.to();
+    uint8_t fromSquare = move.from();
+    uint64_t toSquareMask = 1ULL << toSquare;
+    uint64_t fromSquareMask = 1ULL << fromSquare;
+   
+    if (!(fromSquareMask & allPieces[activePlayer]))
+        return false;
+
+    if (toSquareMask & (allPieces[activePlayer] | pieces[activePlayer ^ 1][KING]))
+        return false;
+
+    // Get move type
+    Move::MoveType moveType = move.moveType();
+
+    // Get piece type
+    PieceType pieceType = squarePieceType[fromSquare];
+
+    if (moveType == Move::MoveType::NORMAL)
+    {
+        uint64_t allPiecesOnBoard = allPieces[activePlayer] | allPieces[activePlayer ^ 1];
+        uint64_t possibleMoves = 0ULL;
+
+        switch (pieceType)
+        {
+        case PAWN:
+        {
+            uint64_t doublePushRank = this->activePlayer == Color::WHITE ? BitboardGenerator::RANK_2 : BitboardGenerator::RANK_7;
+
+            if (toSquareMask & pawnPushes[activePlayer][fromSquare]) // Simple pawn push
+            {
+                if (toSquareMask & allPiecesOnBoard)
+                    return false;
+            }
+            else if ((fromSquareMask & doublePushRank) && toSquareMask == BitboardGenerator::north(BitboardGenerator::north(fromSquareMask))) // Double pawn push
+            {
+                if ((pawnPushes[activePlayer][fromSquare] | toSquareMask) & allPiecesOnBoard)
+                    return false;
+            }
+            else if (toSquareMask & pawnAttacks[activePlayer][fromSquare]) // Pawn attack
+            {
+                if (!(toSquareMask & allPieces[activePlayer ^ 1]))
+                    return false;
+            }
+            else // Invalid pawn move
+            {
+                return false;
+            }
+        }
+
+            break;
+
+        case KNIGHT:
+            // Check if the move is valid
+            if (!(knightMovement[fromSquare] & toSquareMask))
+                return false;
+              
+            break;
+
+        case KING:
+            // Check if the move is valid
+            if (!(kingMovement[fromSquare] & toSquareMask))
+                return false;
+            
+            break;
+
+        case ROOK:
+        {
+            possibleMoves = rookMovement[rookSquareOffset[fromSquare] + _pext_u64(allPiecesOnBoard & rookOccupancyMask[fromSquare], rookOccupancyMask[fromSquare])];
+            if (!(toSquareMask & possibleMoves))
+                return false;
+        }
+
+            break;
+
+        case BISHOP:
+        {
+            possibleMoves = bishopMovement[bishopSquareOffset[fromSquare] + _pext_u64(allPiecesOnBoard & bishopOccupancyMask[fromSquare], bishopOccupancyMask[fromSquare])];
+            if (!(toSquareMask & possibleMoves))
+                return false;
+        }
+
+            break;
+
+        case QUEEN:
+        {
+            // Get the rook moves from the pre-generated movement bitboards (use PEXT to hash the current board)
+            uint64_t possibleRookMoves = rookMovement[rookSquareOffset[fromSquare] + _pext_u64(allPiecesOnBoard & rookOccupancyMask[fromSquare], rookOccupancyMask[fromSquare])];
+            // Get the bishop moves from the pre-generated movement bitboards (use PEXT to hash the current board)
+            uint64_t possibleBishopMoves = bishopMovement[bishopSquareOffset[fromSquare] + _pext_u64(allPiecesOnBoard & bishopOccupancyMask[fromSquare], bishopOccupancyMask[fromSquare])];
+            // Combine the rook and bishop moves
+            possibleMoves = (possibleRookMoves | possibleBishopMoves);
+            if (!(toSquareMask & possibleMoves))
+                return false;
+        }
+
+            break;
+
+        default:
+            return false;
+        }
+    }
+
+    if (moveType == Move::MoveType::PROMOTION)
+    {
+        // Check if the moving piece is a pawn
+        if (pieceType != PAWN)
+            return false;
+
+        // Check if the move is a promotion
+        uint64_t promotionRank = this->activePlayer == Color::WHITE ? BitboardGenerator::RANK_7 : BitboardGenerator::RANK_2;
+        if (!(fromSquareMask & promotionRank))
+            return false;
+
+        // Check if the move is valid
+        if (!(toSquareMask & (pawnPushes[activePlayer][fromSquare] | pawnAttacks[activePlayer][fromSquare])))
+            return false;
+    }
+
+    if (moveType == Move::MoveType::CASTLE)
+    {
+        // Check if the moving piece is a king
+        if (pieceType != KING)
+            return false;
+
+        if (toSquare == 58) // Black queen side
+        {
+            if (!(this->castlingRights & this->blackCastleQueenSide))
+                return false;
+
+            if (!(squaresBetween[56][60] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
+            {
+                // Check the squares between the rook and the king (king included) for attacks
+                uint64_t castleBitboard = squaresBetween[57][61];
+                while (castleBitboard)
+                {
+                    int castleSquare = _tzcnt_u64(castleBitboard);
+                    if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
+                        return false;
+
+                    castleBitboard &= castleBitboard - 1;
+                }
+            }
+        }
+        else if (toSquare == 62) // Black king side
+        {
+            if (!(this->castlingRights & this->blackCastleKingSide))
+                return false;
+
+            if (!(squaresBetween[60][63] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
+            {
+                // Check the squares between the rook and the king (king included) for attacks
+                uint64_t castleBitboard = squaresBetween[59][63];
+                while (castleBitboard)
+                {
+                    int castleSquare = _tzcnt_u64(castleBitboard);
+                    if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
+                        return false;
+
+                    castleBitboard &= castleBitboard - 1;
+                }
+            }
+        }
+        else if (toSquare == 2) // White queen side
+        {
+            if (!(this->castlingRights & this->whiteCastleQueenSide))
+                return false;
+
+            if (!(squaresBetween[0][4] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
+            {
+                // Check the squares between the rook and the king (king included) for attacks
+                uint64_t castleBitboard = squaresBetween[1][5];
+                while (castleBitboard)
+                {
+                    int castleSquare = _tzcnt_u64(castleBitboard);
+                    if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
+                        return false;
+
+                    castleBitboard &= castleBitboard - 1;
+                }
+            }
+        }
+        else if (toSquare == 6) // White king side
+        {
+            if (!(this->castlingRights & this->whiteCastleKingSide))
+                return false;
+
+            if (!(squaresBetween[4][7] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
+            {
+                // Check the squares between the rook and the king (king included) for attacks
+                uint64_t castleBitboard = squaresBetween[3][7];
+                while (castleBitboard)
+                {
+                    int castleSquare = _tzcnt_u64(castleBitboard);
+                    if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
+                        return false;
+
+                    castleBitboard &= castleBitboard - 1;
+                }
+            }
+        }
+        else // Invalid castle
+        {
+            return false;
+        }
+    }
+
+    if (moveType == Move::MoveType::EN_PASSANT)
+    {
+        // Check if the moving piece is a pawn
+        if (pieceType != PAWN)
+            return false;
+
+        const uint64_t EN_PASSANT_RANK = this->activePlayer == Color::WHITE ? BitboardGenerator::RANK_5 : BitboardGenerator::RANK_4;
+        if (!(fromSquareMask & EN_PASSANT_RANK))
+            return false;
+
+        // Check if the en passant is possible in the current state of the board
+        if (!(this->enPassantTargetBitboard & toSquareMask))
+            return false;
+    }
+
+    // Check if the move is legal
+    makeMove(move, activePlayer);
+    bool isLegal = !isAttacked(_tzcnt_u64(pieces[activePlayer][KING]), static_cast<Color>(activePlayer ^ 1));
+    undoMove(static_cast<Color>(activePlayer ^ 1));
+
+    return isLegal;
+}
+
 bool ChessEngine::compareMoves(const Move firstMove, const Move secondMove) const
 {
     if (pieceValue[squarePieceType[firstMove.to()]] > pieceValue[squarePieceType[secondMove.to()]])
@@ -827,12 +1066,45 @@ ChessEngine::SearchResult ChessEngine::negamax(int alpha, int beta, const int de
 
 ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int depth, const Color colorToMove)
 {
+    if (this->stopSearch)
+        return SearchResult();
+
     auto currentTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - this->searchStartTime).count();
     if (duration >= this->timeLimitInMilliseconds)
     {
         this->stopSearch = true;
         return SearchResult();
+    }
+
+    // Check the transposition table entry
+    int TTIndex = this->boardZobristHash & (this->transpositionTableSize - 1);
+    if (transpositionTable[TTIndex].zobristHash == this->boardZobristHash && transpositionTable[TTIndex].depth >= depth)
+    {
+        if (transpositionTable[TTIndex].nodeType == NodeType::EXACT)
+            if (isValid(transpositionTable[TTIndex].move))
+                return SearchResult(transpositionTable[TTIndex].move, transpositionTable[TTIndex].score);
+
+        if (colorToMove == Color::WHITE)
+        {
+            if (transpositionTable[TTIndex].nodeType == NodeType::LOWER_BOUND && transpositionTable[TTIndex].score >= beta)
+                if (isValid(transpositionTable[TTIndex].move))
+                    return SearchResult(transpositionTable[TTIndex].move, transpositionTable[TTIndex].score);
+
+            if (transpositionTable[TTIndex].nodeType == NodeType::UPPER_BOUND && transpositionTable[TTIndex].score < alpha)
+                if (isValid(transpositionTable[TTIndex].move))
+                    return SearchResult(transpositionTable[TTIndex].move, transpositionTable[TTIndex].score);
+        }
+        else
+        {
+            if (transpositionTable[TTIndex].nodeType == NodeType::LOWER_BOUND && transpositionTable[TTIndex].score <= alpha)
+                if (isValid(transpositionTable[TTIndex].move))
+                    return SearchResult(transpositionTable[TTIndex].move, transpositionTable[TTIndex].score);
+
+            if (transpositionTable[TTIndex].nodeType == NodeType::UPPER_BOUND && transpositionTable[TTIndex].score > beta)
+                if (isValid(transpositionTable[TTIndex].move))
+                    return SearchResult(transpositionTable[TTIndex].move, transpositionTable[TTIndex].score);
+        }
     }
 
     if (depth == 0)
@@ -844,6 +1116,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
     
     if (colorToMove == Color::WHITE)
     {
+        const int originalAlpha = alpha;
         SearchResult result(INT_MIN);
 
         for (int i = 0; i < moves.numberOfMoves; i++)
@@ -866,6 +1139,10 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                 if (moveResult.score >= beta)
                 {
                     undoMove(colorToMove);
+
+                    // Store the result in the transposition table
+                    transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
+
                     return result;
                 }
             }
@@ -881,10 +1158,17 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                 result.score = 0;
         }
 
+        // Store the result in the transposition table
+        if (alpha > originalAlpha)
+            transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::EXACT);
+        else
+            transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::UPPER_BOUND);
+
         return result;
     }
     else
     {
+        const int originalBeta = beta;
         SearchResult result(INT_MAX);
 
         for (int i = 0; i < moves.numberOfMoves; i++)
@@ -907,6 +1191,10 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                 if (moveResult.score <= alpha)
                 {
                     undoMove(colorToMove);
+
+                    // Store the result in the transposition table
+                    transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
+
                     return result;
                 }
             }
@@ -921,6 +1209,11 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
             else // If the king is not in check them it is stalemate
                 result.score = 0;
         }
+
+        if (beta < originalBeta)
+            transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::EXACT);
+        else
+            transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::UPPER_BOUND);
 
         return result;
     }
@@ -1104,6 +1397,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
             if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         }
 
+        // Change the active player
+        this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
+        this->boardZobristHash ^= this->changePlayerZobristHash;
+
         return;
     }
 
@@ -1172,6 +1469,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Update the array that stores piece types for each square
         squarePieceType[fromSquare] = PieceType::NONE;
         squarePieceType[toSquare] = promotionType;
+
+        // Change the active player
+        this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
+        this->boardZobristHash ^= this->changePlayerZobristHash;
 
         return;
     }
@@ -1249,6 +1550,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         squarePieceType[rookFromSquare] = PieceType::NONE;
         squarePieceType[rookToSquare] = PieceType::ROOK;
 
+        // Change the active player
+        this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
+        this->boardZobristHash ^= this->changePlayerZobristHash;
+
         return;
     }
 
@@ -1297,6 +1602,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         squarePieceType[fromSquare] = PieceType::NONE;
         squarePieceType[toSquare] = PieceType::PAWN;
         squarePieceType[capturedPawnSquare] = PieceType::NONE;
+
+        // Change the active player
+        this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
+        this->boardZobristHash ^= this->changePlayerZobristHash;
 
         return;
     }
@@ -1356,6 +1665,10 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
+        // Change the active player
+        this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
+        this->boardZobristHash ^= this->changePlayerZobristHash;
+
         return;
     }
 
@@ -1399,6 +1712,10 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+
+        // Change the active player
+        this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
+        this->boardZobristHash ^= this->changePlayerZobristHash;
 
         return;
     }
@@ -1466,6 +1783,10 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
+        // Change the active player
+        this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
+        this->boardZobristHash ^= this->changePlayerZobristHash;
+
         return;
     }
 
@@ -1516,6 +1837,10 @@ void ChessEngine::undoMove(const Color colorThatMoved)
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+
+        // Change the active player
+        this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
+        this->boardZobristHash ^= this->changePlayerZobristHash;
 
         return;
     }

@@ -12,13 +12,29 @@
 
 class ChessEngine {
 public:
-    enum PieceType {
-        PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, NONE
-    };
+	enum PieceType {
+		PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, NONE
+	};
 
-    enum Color {
-        WHITE, BLACK
-    };
+	enum Color {
+		WHITE, BLACK
+	};
+
+	enum NodeType {
+		EXACT, LOWER_BOUND, UPPER_BOUND
+	};
+
+	struct TranspositionTableEntry
+	{
+		uint64_t zobristHash;
+		Move move;
+		int score;
+		int depth;
+		NodeType nodeType;
+
+		TranspositionTableEntry() : zobristHash(0ULL), move(Move()), score(0), depth(0), nodeType(NodeType::EXACT) {}
+		TranspositionTableEntry(const uint64_t zobrishHash, const Move move, const int score, const int depth, const NodeType nodeType) : zobristHash(zobrishHash), move(move), score(score), depth(depth), nodeType(nodeType) {}
+	};
 
 	struct SearchResult
 	{
@@ -30,22 +46,23 @@ public:
 		SearchResult(const int score) : move(Move()), score(score) {}
 	};
 
-    ChessEngine(); // Chess engine constructor
+	ChessEngine(); // Chess engine constructor
+	~ChessEngine(); // Chess engine destructor
 
-    void loadFENPosition(const std::string position); // Load a chess position from a FEN string
+	void loadFENPosition(const std::string position); // Load a chess position from a FEN string
 
-    uint64_t getAllPieces() const; // Get a bitboard containing all pieces on the board
+	uint64_t getAllPieces() const; // Get a bitboard containing all pieces on the board
 
-    std::string bitboardToString(const uint64_t bitboard) const; // Get a string representation of a bitboard
-    std::string getSquareNotation(const int square) const; // Get the notation of a square (notation of square 0 is A1)
+	std::string bitboardToString(const uint64_t bitboard) const; // Get a string representation of a bitboard
+	std::string getSquareNotation(const int square) const; // Get the notation of a square (notation of square 0 is A1)
 
-    MoveList getPseudolegalMoves(const Color color) const; // Get the pseudolegal moves of the given color
-    MoveList getLegalMoves(const Color color); // Get the legal moves of the given color
+	MoveList getPseudolegalMoves(const Color color) const; // Get the pseudolegal moves of the given color
+	MoveList getLegalMoves(const Color color); // Get the legal moves of the given color
 
-    void makeMove(const Move move, const Color colorToMove); // Make a move on the board as the given color
-    void undoMove(const Color colorThatMoved); // Undo the last move, color of the player that moved required
+	void makeMove(const Move move, const Color colorToMove); // Make a move on the board as the given color
+	void undoMove(const Color colorThatMoved); // Undo the last move, color of the player that moved required
 
-    unsigned long long perft(const int depth, const Color colorToMove); // Perft of a given depth starting with a given color
+	unsigned long long perft(const int depth, const Color colorToMove); // Perft of a given depth starting with a given color
 
 	SearchResult search(const int depth, const Color colorToMove); // Search for the best move of the given color by going to the given depth in the game tree
 	SearchResult iterativeDeepeningSearch(const Color colorToMove, const int timeLimit); // Ssearch for the best move of the given color within the time limit (in milliseconds)
@@ -56,37 +73,42 @@ public:
 	uint64_t getZobristHash() const; // Get the zobrist hash for the current state of the board
 
 private:
-    PieceType squarePieceType[64]; // Array that stores the piece type of each square
+	Color activePlayer; // The currently active player
 
-    uint64_t pieces[2][6]; // Bitboards for all types of pieces of each color (first index for color, second index for piece type)
-    uint64_t allPieces[2]; // Bitboards that hold all pieces of each color
+	PieceType squarePieceType[64]; // Array that stores the piece type of each square
 
-    uint8_t castlingRights; // The 4 least significant bits are used to store castling rights
-    uint8_t whiteCastleQueenSide, whiteCastleKingSide, blackCastleQueenSide, blackCastleKingSide; // Values corresponding to each castling right
+	uint64_t pieces[2][6]; // Bitboards for all types of pieces of each color (first index for color, second index for piece type)
+	uint64_t allPieces[2]; // Bitboards that hold all pieces of each color
 
-    uint64_t enPassantTargetBitboard; // Bitboard containing the squares that can be attacked by an "en passant" move
+	uint8_t castlingRights; // The 4 least significant bits are used to store castling rights
+	uint8_t whiteCastleQueenSide, whiteCastleKingSide, blackCastleQueenSide, blackCastleKingSide; // Values corresponding to each castling right
 
-    uint64_t squaresBetween[64][64]; // Bitboards containing the squares between two other squares (if they are on the same line or diagonal)
+	uint64_t enPassantTargetBitboard; // Bitboard containing the squares that can be attacked by an "en passant" move
 
-    uint64_t pawnPushes[2][64], pawnAttacks[2][64]; // Bitboards for pawn movement
-    uint64_t knightMovement[64]; // Bitboards for knight movement
-    uint64_t kingMovement[64]; // Bitboards for king movement
+	uint64_t squaresBetween[64][64]; // Bitboards containing the squares between two other squares (if they are on the same line or diagonal)
 
-    uint64_t rookOccupancyMask[64]; // Bitboards for rook occupancy masks
-    uint64_t rookMovement[102400]; // Bitboards for rook movement
-    int rookSquareOffset[64]; // Offset for each square in the rook movement array
+	uint64_t pawnPushes[2][64], pawnAttacks[2][64]; // Bitboards for pawn movement
+	uint64_t knightMovement[64]; // Bitboards for knight movement
+	uint64_t kingMovement[64]; // Bitboards for king movement
 
-    uint64_t bishopOccupancyMask[64]; // Bitboards for bishop occupancy masks
-    uint64_t bishopMovement[5248]; // Bitboards for bishop movement
-    int bishopSquareOffset[64]; // Offset for each square in the bishop movement array
+	uint64_t rookOccupancyMask[64]; // Bitboards for rook occupancy masks
+	uint64_t rookMovement[102400]; // Bitboards for rook movement
+	int rookSquareOffset[64]; // Offset for each square in the rook movement array
 
-    PieceType promotionPieceToPieceType[4]; // Get the corresponding piece type from an encoded promotion piece
+	uint64_t bishopOccupancyMask[64]; // Bitboards for bishop occupancy masks
+	uint64_t bishopMovement[5248]; // Bitboards for bishop movement
+	int bishopSquareOffset[64]; // Offset for each square in the bishop movement array
+
+	PieceType promotionPieceToPieceType[4]; // Get the corresponding piece type from an encoded promotion piece
 
 	uint64_t pieceZobristHash[6][64]; // Zobrist hash for each piece type on every square of the board
 	uint64_t castlingRightsZobristHash[16]; // Zobrist hash for each possible combination of castling rights
 	uint64_t enPassantTargetSquareZobristHash[64]; // Zobrist hash for each en passant target square
 	uint64_t changePlayerZobristHash; // Zobrist hash for changing the active player
 	uint64_t boardZobristHash; // The zobrist hash for the current state of the board
+
+	const int transpositionTableSize = 1 << 25; // The size of the transposition table
+	TranspositionTableEntry* transpositionTable; // Transposition table
 
     std::stack<UndoHelper> undoStack; // Stack information about every move (for undo purposes)
 
@@ -119,6 +141,8 @@ private:
 	uint64_t getAttacksBitboard(const int square, const Color color) const; // Returns the number of attacks the given color has on the given square
 
 	MoveList getPseudolegalMovesInCheck(const Color color, const uint64_t attackingSquares) const; // Get the pseudolegal moves of the given color when in check (checked by the attacking squares)
+
+	bool isValid(const Move move); // Check if the given move is valid in the current state of the board
 
 	bool compareMoves(const Move firstMove, const Move secondMove) const; // Compare two moves using MVV-LVA
 	void sortMoves(MoveList& movelist) const; // Sort the move list using MVV-LVA
