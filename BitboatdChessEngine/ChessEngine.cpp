@@ -1064,7 +1064,7 @@ ChessEngine::SearchResult ChessEngine::negamax(int alpha, int beta, const int de
     return result;
 }
 
-ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int depth, const Color colorToMove)
+ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int depth, const int ply, const Color colorToMove)
 {
     if (this->stopSearch)
         return SearchResult();
@@ -1111,7 +1111,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
         return SearchResult(evaluate());
 
     uint64_t squaresAttackingKing = getAttacksBitboard(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1));
-    MoveList moves = squaresAttackingKing ? getPseudolegalMovesInCheck(colorToMove, squaresAttackingKing) : getPseudolegalMoves(colorToMove);
+    MoveList moves = squaresAttackingKing != 0ULL ? getPseudolegalMovesInCheck(colorToMove, squaresAttackingKing) : getPseudolegalMoves(colorToMove);
     sortMoves(moves);
     
     if (colorToMove == Color::WHITE)
@@ -1126,7 +1126,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
             // Check if the move is legal
             if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
             {
-                SearchResult moveResult(moves.moves[i], minimax(alpha, beta, depth - 1, Color::BLACK).score);
+                SearchResult moveResult(moves.moves[i], minimax(alpha, beta, depth - 1, ply + 1, Color::BLACK).score);
 
                 if (moveResult.score > result.score)
                 {
@@ -1153,7 +1153,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
         if (result.score == INT_MIN) // No legal move found
         {
             if (squaresAttackingKing) // If the king is in check then it is checkmate
-                result.score = CHECKMATE_SCORE[colorToMove];
+                result.score = CHECKMATE_SCORE[colorToMove] + ply;
             else // If the king is not in check them it is stalemate
                 result.score = 0;
         }
@@ -1178,7 +1178,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
             // Check if the move is legal
             if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
             {
-                SearchResult moveResult(moves.moves[i], minimax(alpha, beta, depth - 1, Color::WHITE).score);
+                SearchResult moveResult(moves.moves[i], minimax(alpha, beta, depth - 1, ply + 1, Color::WHITE).score);
 
                 if (moveResult.score < result.score)
                 {
@@ -1205,7 +1205,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
         if (result.score == INT_MAX) // No legal move found
         {
             if (squaresAttackingKing) // If the king is in check then it is checkmate
-                result.score = CHECKMATE_SCORE[colorToMove];
+                result.score = CHECKMATE_SCORE[colorToMove] - ply;
             else // If the king is not in check them it is stalemate
                 result.score = 0;
         }
@@ -1883,7 +1883,7 @@ unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
 ChessEngine::SearchResult ChessEngine::search(const int depth, const Color colorToMove)
 {
     //return negamax(INT_MIN, INT_MAX, depth, colorToMove);
-    return minimax(INT_MIN, INT_MAX, depth, colorToMove);
+    return minimax(INT_MIN, INT_MAX, depth, 1, colorToMove);
 }
 
 ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const Color colorToMove, const int timeLimit)
@@ -1896,7 +1896,7 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const Color colo
     for (int depth = 1; /*TODO Choose depth limit */!this->stopSearch; depth++)
     {
         auto start = std::chrono::high_resolution_clock::now();
-        SearchResult result = this->minimax(INT_MIN, INT_MAX, depth, colorToMove);
+        SearchResult result = this->minimax(INT_MIN, INT_MAX, depth, 1, colorToMove);
         auto stop = std::chrono::high_resolution_clock::now();
 
         if (!this->stopSearch)

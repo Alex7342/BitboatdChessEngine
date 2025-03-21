@@ -150,7 +150,7 @@ private:
 	int evaluate() const; // Compute an evaluation of the current state of the board. Positive values favour white, negative values favour black.
 	
 	SearchResult negamax(int alpha, int beta, const int depth, const Color colorToMove); // Negamax algorithm with alpha beta pruning
-	SearchResult minimax(int alpha, int beta, const int depth, const Color colorToMove); // Minimax algorithm with alpha beta pruning
+	SearchResult minimax(int alpha, int beta, const int depth, const int ply, const Color colorToMove); // Minimax algorithm with alpha beta pruning
 };
 
 constexpr int CHECKMATE_SCORE[2] = { SHRT_MIN, SHRT_MAX };
