@@ -328,12 +328,12 @@ void ChessEngine::initializeBishopMovesetBitboards()
     }
 }
 
-void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint64_t mask) const
+void ChessEngine::addPawnMoves(MoveList& moveList, const uint64_t mask) const
 {
-    uint64_t pawns = pieces[color][PAWN];
-    uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
-    uint64_t doublePushRank = color == Color::WHITE ? BitboardGenerator::RANK_2 : BitboardGenerator::RANK_7;
-    uint64_t promotionRank = color == Color::WHITE ? BitboardGenerator::RANK_7 : BitboardGenerator::RANK_2;
+    uint64_t pawns = pieces[activePlayer][PAWN];
+    uint64_t allPiecesOnBoard = allPieces[activePlayer] | allPieces[activePlayer ^ 1];
+    uint64_t doublePushRank = activePlayer == Color::WHITE ? BitboardGenerator::RANK_2 : BitboardGenerator::RANK_7;
+    uint64_t promotionRank = activePlayer == Color::WHITE ? BitboardGenerator::RANK_7 : BitboardGenerator::RANK_2;
 
     while (pawns)
     {
@@ -344,11 +344,11 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint
         uint64_t singlePawnBitboard = 1ULL << square;
 
         // Add pawn pushes
-        if (!(pawnPushes[color][square] & allPiecesOnBoard))
+        if (!(pawnPushes[activePlayer][square] & allPiecesOnBoard))
         {
-            int pushSquare = _tzcnt_u64(pawnPushes[color][square]);
+            int pushSquare = _tzcnt_u64(pawnPushes[activePlayer][square]);
 
-            if (pawnPushes[color][square] & mask)
+            if (pawnPushes[activePlayer][square] & mask)
             {
                 // Check for promotion possibility
                 if (singlePawnBitboard & promotionRank)
@@ -369,13 +369,13 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint
             // Check for double push possibility
             if (singlePawnBitboard & doublePushRank)
             {
-                if (!(pawnPushes[color][pushSquare] & allPiecesOnBoard) && (pawnPushes[color][pushSquare] & mask))
-                    moveList.add(Move(square, _tzcnt_u64(pawnPushes[color][pushSquare])));
+                if (!(pawnPushes[activePlayer][pushSquare] & allPiecesOnBoard) && (pawnPushes[activePlayer][pushSquare] & mask))
+                    moveList.add(Move(square, _tzcnt_u64(pawnPushes[activePlayer][pushSquare])));
             }
         }
 
         // Add pawn attacks
-        uint64_t successfulAttacks = (pawnAttacks[color][square] & (allPieces[color ^ 1] & ~pieces[color ^ 1][KING])) & mask; // The enemy king can not be captured
+        uint64_t successfulAttacks = (pawnAttacks[activePlayer][square] & (allPieces[activePlayer ^ 1] & ~pieces[activePlayer ^ 1][KING])) & mask; // The enemy king can not be captured
         while (successfulAttacks)
         {
             int attackedSquare = _tzcnt_u64(successfulAttacks);
@@ -396,7 +396,7 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint
         }
 
         // Add en passant attack
-        if (pawnAttacks[color][square] & enPassantTargetBitboard)
+        if (pawnAttacks[activePlayer][square] & enPassantTargetBitboard)
         {
             // Add en passant attack
             moveList.add(Move(square, _tzcnt_u64(enPassantTargetBitboard), Move::MoveType::EN_PASSANT));
@@ -407,9 +407,9 @@ void ChessEngine::addPawnMoves(const Color color, MoveList& moveList, const uint
     }
 }
 
-void ChessEngine::addKnightMoves(const Color color, MoveList& moveList, const uint64_t mask) const
+void ChessEngine::addKnightMoves(MoveList& moveList, const uint64_t mask) const
 {
-    uint64_t knights = pieces[color][KNIGHT];
+    uint64_t knights = pieces[activePlayer][KNIGHT];
 
     while (knights)
     {
@@ -417,7 +417,7 @@ void ChessEngine::addKnightMoves(const Color color, MoveList& moveList, const ui
         int square = _tzcnt_u64(knights);
 
         // Add knight moves (the enemy king can not be captured)
-        uint64_t possibleMoves = knightMovement[square] & ~allPieces[color] & ~pieces[color ^ 1][KING] & mask;
+        uint64_t possibleMoves = knightMovement[square] & ~allPieces[activePlayer] & ~pieces[activePlayer ^ 1][KING] & mask;
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -430,9 +430,9 @@ void ChessEngine::addKnightMoves(const Color color, MoveList& moveList, const ui
     }
 }
 
-void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
+void ChessEngine::addKingMoves(MoveList& movelist) const
 {
-    uint64_t king = pieces[color][KING];
+    uint64_t king = pieces[activePlayer][KING];
 
     while (king)
     {
@@ -440,7 +440,7 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
         int square = _tzcnt_u64(king);
 
         // Add king moves (enemy king can not be captured)
-        uint64_t possibleMoves = kingMovement[square] & ~allPieces[color] & ~pieces[color ^ 1][KING];
+        uint64_t possibleMoves = kingMovement[square] & ~allPieces[activePlayer] & ~pieces[activePlayer ^ 1][KING];
         while (possibleMoves)
         {
             int attackedSquare = _tzcnt_u64(possibleMoves);
@@ -449,11 +449,11 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
         }
 
         // TODO Check attacks with an attack bitboard
-        if (color == Color::WHITE)
+        if (activePlayer == Color::WHITE)
         {
             if (castlingRights & whiteCastleQueenSide)
             {
-                if (!(squaresBetween[0][4] & (allPieces[color] | allPieces[color ^ 1])))
+                if (!(squaresBetween[0][4] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
                 {
                     bool canCastle = true;
 
@@ -462,7 +462,7 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
                     while (castleBitboard)
                     {
                         int castleSquare = _tzcnt_u64(castleBitboard);
-                        if (isAttacked(castleSquare, static_cast<Color>(color ^ 1)))
+                        if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
                         {
                             canCastle = false;
                             break;
@@ -477,7 +477,7 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
 
             if (castlingRights & whiteCastleKingSide)
             {
-                if (!(squaresBetween[7][4] & (allPieces[color] | allPieces[color ^ 1])))
+                if (!(squaresBetween[7][4] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
                 {
                     bool canCastle = true;
 
@@ -486,7 +486,7 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
                     while (castleBitboard)
                     {
                         int castleSquare = _tzcnt_u64(castleBitboard);
-                        if (isAttacked(castleSquare, static_cast<Color>(color ^ 1)))
+                        if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
                         {
                             canCastle = false;
                             break;
@@ -499,11 +499,11 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
                 }
             }
         }
-        else if (color == Color::BLACK)
+        else if (activePlayer == Color::BLACK)
         {
             if (castlingRights & blackCastleQueenSide)
             {
-                if (!(squaresBetween[56][60] & (allPieces[color] | allPieces[color ^ 1])))
+                if (!(squaresBetween[56][60] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
                 {
                     bool canCastle = true;
 
@@ -512,7 +512,7 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
                     while (castleBitboard)
                     {
                         int castleSquare = _tzcnt_u64(castleBitboard);
-                        if (isAttacked(castleSquare, static_cast<Color>(color ^ 1)))
+                        if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
                         {
                             canCastle = false;
                             break;
@@ -527,7 +527,7 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
 
             if (castlingRights & blackCastleKingSide)
             {
-                if (!(squaresBetween[63][60] & (allPieces[color] | allPieces[color ^ 1])))
+                if (!(squaresBetween[63][60] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
                 {
                     bool canCastle = true;
 
@@ -536,7 +536,7 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
                     while (castleBitboard)
                     {
                         int castleSquare = _tzcnt_u64(castleBitboard);
-                        if (isAttacked(castleSquare, static_cast<Color>(color ^ 1)))
+                        if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
                         {
                             canCastle = false;
                             break;
@@ -555,10 +555,10 @@ void ChessEngine::addKingMoves(const Color color, MoveList& movelist) const
     }
 }
 
-void ChessEngine::addRookMoves(const Color color, MoveList& movelist, const uint64_t mask) const
+void ChessEngine::addRookMoves(MoveList& movelist, const uint64_t mask) const
 {
-    uint64_t rooks = pieces[color][ROOK];
-    uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
+    uint64_t rooks = pieces[activePlayer][ROOK];
+    uint64_t allPiecesOnBoard = allPieces[activePlayer] | allPieces[activePlayer ^ 1];
 
     while (rooks)
     {
@@ -567,7 +567,7 @@ void ChessEngine::addRookMoves(const Color color, MoveList& movelist, const uint
 
         // Get the rook moves from the pre-generated movement bitboards (use PEXT to hash the current board)
         uint64_t possibleMoves = rookMovement[rookSquareOffset[square] + _pext_u64(allPiecesOnBoard & rookOccupancyMask[square], rookOccupancyMask[square])];
-        possibleMoves &= ~allPieces[color]; // Remove the pieces of the same color from the attack set
+        possibleMoves &= ~allPieces[activePlayer]; // Remove the pieces of the same color from the attack set
         possibleMoves &= mask; // Only select moves within the mask
         while (possibleMoves)
         {
@@ -581,10 +581,10 @@ void ChessEngine::addRookMoves(const Color color, MoveList& movelist, const uint
     }
 }
 
-void ChessEngine::addBishopMoves(const Color color, MoveList& movelist, const uint64_t mask) const
+void ChessEngine::addBishopMoves(MoveList& movelist, const uint64_t mask) const
 {
-    uint64_t bishops = pieces[color][BISHOP];
-    uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
+    uint64_t bishops = pieces[activePlayer][BISHOP];
+    uint64_t allPiecesOnBoard = allPieces[activePlayer] | allPieces[activePlayer ^ 1];
 
     while (bishops)
     {
@@ -593,7 +593,7 @@ void ChessEngine::addBishopMoves(const Color color, MoveList& movelist, const ui
 
         // Get the bishop moves from the pre-generated movement bitboards (use PEXT to hash the current board)
         uint64_t possibleMoves = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPiecesOnBoard & bishopOccupancyMask[square], bishopOccupancyMask[square])];
-        possibleMoves &= ~allPieces[color]; // Remove the pieces of the same color from the attack set
+        possibleMoves &= ~allPieces[activePlayer]; // Remove the pieces of the same color from the attack set
         possibleMoves &= mask; // Only select moves within the mask
         while (possibleMoves)
         {
@@ -607,10 +607,10 @@ void ChessEngine::addBishopMoves(const Color color, MoveList& movelist, const ui
     }
 }
 
-void ChessEngine::addQueenMoves(const Color color, MoveList& movelist, const uint64_t mask) const
+void ChessEngine::addQueenMoves(MoveList& movelist, const uint64_t mask) const
 {
-    uint64_t queens = pieces[color][QUEEN];
-    uint64_t allPiecesOnBoard = allPieces[color] | allPieces[color ^ 1];
+    uint64_t queens = pieces[activePlayer][QUEEN];
+    uint64_t allPiecesOnBoard = allPieces[activePlayer] | allPieces[activePlayer ^ 1];
 
     while (queens)
     {
@@ -623,7 +623,7 @@ void ChessEngine::addQueenMoves(const Color color, MoveList& movelist, const uin
         uint64_t possibleBishopMoves = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPiecesOnBoard & bishopOccupancyMask[square], bishopOccupancyMask[square])];
 
         // Combine the rook and bishop moves and remove own pieces from attack set
-        uint64_t possibleMoves = (possibleRookMoves | possibleBishopMoves) & ~allPieces[color];
+        uint64_t possibleMoves = (possibleRookMoves | possibleBishopMoves) & ~allPieces[activePlayer];
         possibleMoves &= mask; // Only select moves within the mask
         while (possibleMoves)
         {
@@ -701,10 +701,10 @@ uint64_t ChessEngine::getAttacksBitboard(const int square, const Color color) co
     return attackingSquares;
 }
 
-MoveList ChessEngine::getPseudolegalMovesInCheck(const Color color, const uint64_t attackingSquares) const
+MoveList ChessEngine::getPseudolegalMovesInCheck(const uint64_t attackingSquares) const
 {
     MoveList movelist;
-    int kingSquare = _tzcnt_u64(pieces[color][KING]);
+    int kingSquare = _tzcnt_u64(pieces[activePlayer][KING]);
 
     if ((attackingSquares & (attackingSquares - 1)) == 0) // Only one piece attacking the king
     {
@@ -712,19 +712,19 @@ MoveList ChessEngine::getPseudolegalMovesInCheck(const Color color, const uint64
         int attackingSquare = _tzcnt_u64(attackingSquares);
         uint64_t mask = squaresBetween[kingSquare][attackingSquare] | attackingSquares;
 
-        addKingMoves(color, movelist);
-        addPawnMoves(color, movelist, mask);
-        addKnightMoves(color, movelist, mask);
-        addRookMoves(color, movelist, mask);
-        addBishopMoves(color, movelist, mask);
-        addQueenMoves(color, movelist, mask);
+        addKingMoves(movelist);
+        addPawnMoves(movelist, mask);
+        addKnightMoves(movelist, mask);
+        addRookMoves(movelist, mask);
+        addBishopMoves(movelist, mask);
+        addQueenMoves(movelist, mask);
 
         return movelist;
     }
     else // Two pieces attacking the king
     {
         // Generate only king moves (no castle)
-        uint64_t possibleMoves = kingMovement[kingSquare] & ~allPieces[color] & ~pieces[color ^ 1][KING];
+        uint64_t possibleMoves = kingMovement[kingSquare] & ~allPieces[activePlayer] & ~pieces[activePlayer ^ 1][KING];
         while (possibleMoves)
         {
             int escapeSquare = _tzcnt_u64(possibleMoves);
@@ -738,16 +738,18 @@ MoveList ChessEngine::getPseudolegalMovesInCheck(const Color color, const uint64
 
 bool ChessEngine::isValid(const Move move)
 {
+    Color colorToMove = this->activePlayer;
+
     // Extract move information
     uint8_t toSquare = move.to();
     uint8_t fromSquare = move.from();
     uint64_t toSquareMask = 1ULL << toSquare;
     uint64_t fromSquareMask = 1ULL << fromSquare;
    
-    if (!(fromSquareMask & allPieces[activePlayer]))
+    if (!(fromSquareMask & allPieces[colorToMove]))
         return false;
 
-    if (toSquareMask & (allPieces[activePlayer] | pieces[activePlayer ^ 1][KING]))
+    if (toSquareMask & (allPieces[colorToMove] | pieces[colorToMove ^ 1][KING]))
         return false;
 
     // Get move type
@@ -758,7 +760,7 @@ bool ChessEngine::isValid(const Move move)
 
     if (moveType == Move::MoveType::NORMAL)
     {
-        uint64_t allPiecesOnBoard = allPieces[activePlayer] | allPieces[activePlayer ^ 1];
+        uint64_t allPiecesOnBoard = allPieces[colorToMove] | allPieces[colorToMove ^ 1];
         uint64_t possibleMoves = 0ULL;
 
         switch (pieceType)
@@ -767,19 +769,19 @@ bool ChessEngine::isValid(const Move move)
         {
             uint64_t doublePushRank = this->activePlayer == Color::WHITE ? BitboardGenerator::RANK_2 : BitboardGenerator::RANK_7;
 
-            if (toSquareMask & pawnPushes[activePlayer][fromSquare]) // Simple pawn push
+            if (toSquareMask & pawnPushes[colorToMove][fromSquare]) // Simple pawn push
             {
                 if (toSquareMask & allPiecesOnBoard)
                     return false;
             }
             else if ((fromSquareMask & doublePushRank) && toSquareMask == BitboardGenerator::north(BitboardGenerator::north(fromSquareMask))) // Double pawn push
             {
-                if ((pawnPushes[activePlayer][fromSquare] | toSquareMask) & allPiecesOnBoard)
+                if ((pawnPushes[colorToMove][fromSquare] | toSquareMask) & allPiecesOnBoard)
                     return false;
             }
-            else if (toSquareMask & pawnAttacks[activePlayer][fromSquare]) // Pawn attack
+            else if (toSquareMask & pawnAttacks[colorToMove][fromSquare]) // Pawn attack
             {
-                if (!(toSquareMask & allPieces[activePlayer ^ 1]))
+                if (!(toSquareMask & allPieces[colorToMove ^ 1]))
                     return false;
             }
             else // Invalid pawn move
@@ -853,7 +855,7 @@ bool ChessEngine::isValid(const Move move)
             return false;
 
         // Check if the move is valid
-        if (!(toSquareMask & (pawnPushes[activePlayer][fromSquare] | pawnAttacks[activePlayer][fromSquare])))
+        if (!(toSquareMask & (pawnPushes[colorToMove][fromSquare] | pawnAttacks[colorToMove][fromSquare])))
             return false;
     }
 
@@ -868,14 +870,14 @@ bool ChessEngine::isValid(const Move move)
             if (!(this->castlingRights & this->blackCastleQueenSide))
                 return false;
 
-            if (!(squaresBetween[56][60] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
+            if (!(squaresBetween[56][60] & (allPieces[colorToMove] | allPieces[colorToMove ^ 1])))
             {
                 // Check the squares between the rook and the king (king included) for attacks
                 uint64_t castleBitboard = squaresBetween[57][61];
                 while (castleBitboard)
                 {
                     int castleSquare = _tzcnt_u64(castleBitboard);
-                    if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
+                    if (isAttacked(castleSquare, static_cast<Color>(colorToMove ^ 1)))
                         return false;
 
                     castleBitboard &= castleBitboard - 1;
@@ -887,14 +889,14 @@ bool ChessEngine::isValid(const Move move)
             if (!(this->castlingRights & this->blackCastleKingSide))
                 return false;
 
-            if (!(squaresBetween[60][63] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
+            if (!(squaresBetween[60][63] & (allPieces[colorToMove] | allPieces[colorToMove ^ 1])))
             {
                 // Check the squares between the rook and the king (king included) for attacks
                 uint64_t castleBitboard = squaresBetween[59][63];
                 while (castleBitboard)
                 {
                     int castleSquare = _tzcnt_u64(castleBitboard);
-                    if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
+                    if (isAttacked(castleSquare, static_cast<Color>(colorToMove ^ 1)))
                         return false;
 
                     castleBitboard &= castleBitboard - 1;
@@ -906,14 +908,14 @@ bool ChessEngine::isValid(const Move move)
             if (!(this->castlingRights & this->whiteCastleQueenSide))
                 return false;
 
-            if (!(squaresBetween[0][4] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
+            if (!(squaresBetween[0][4] & (allPieces[colorToMove] | allPieces[colorToMove ^ 1])))
             {
                 // Check the squares between the rook and the king (king included) for attacks
                 uint64_t castleBitboard = squaresBetween[1][5];
                 while (castleBitboard)
                 {
                     int castleSquare = _tzcnt_u64(castleBitboard);
-                    if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
+                    if (isAttacked(castleSquare, static_cast<Color>(colorToMove ^ 1)))
                         return false;
 
                     castleBitboard &= castleBitboard - 1;
@@ -925,14 +927,14 @@ bool ChessEngine::isValid(const Move move)
             if (!(this->castlingRights & this->whiteCastleKingSide))
                 return false;
 
-            if (!(squaresBetween[4][7] & (allPieces[activePlayer] | allPieces[activePlayer ^ 1])))
+            if (!(squaresBetween[4][7] & (allPieces[colorToMove] | allPieces[colorToMove ^ 1])))
             {
                 // Check the squares between the rook and the king (king included) for attacks
                 uint64_t castleBitboard = squaresBetween[3][7];
                 while (castleBitboard)
                 {
                     int castleSquare = _tzcnt_u64(castleBitboard);
-                    if (isAttacked(castleSquare, static_cast<Color>(activePlayer ^ 1)))
+                    if (isAttacked(castleSquare, static_cast<Color>(colorToMove ^ 1)))
                         return false;
 
                     castleBitboard &= castleBitboard - 1;
@@ -961,9 +963,9 @@ bool ChessEngine::isValid(const Move move)
     }
 
     // Check if the move is legal
-    makeMove(move, activePlayer);
-    bool isLegal = !isAttacked(_tzcnt_u64(pieces[activePlayer][KING]), static_cast<Color>(activePlayer ^ 1));
-    undoMove(static_cast<Color>(activePlayer ^ 1));
+    makeMove(move);
+    bool isLegal = !isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1));
+    undoMove();
 
     return isLegal;
 }
@@ -1032,10 +1034,10 @@ ChessEngine::SearchResult ChessEngine::negamax(int alpha, int beta, const int de
 
     SearchResult result(INT_MIN);
 
-    MoveList moves = getPseudolegalMoves(colorToMove);
+    MoveList moves = getPseudolegalMoves();
     for (int i = 0; i < moves.numberOfMoves; i++)
     {
-        makeMove(moves.moves[i], colorToMove);
+        makeMove(moves.moves[i]);
 
         // Check if the move is legal
         if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
@@ -1053,18 +1055,18 @@ ChessEngine::SearchResult ChessEngine::negamax(int alpha, int beta, const int de
             // TODO Fix alpha beta pruning
             if (moveResult.score >= beta)
             {
-                undoMove(colorToMove);
+                undoMove();
                 return result;
             }
         }
 
-        undoMove(colorToMove);
+        undoMove();
     }
 
     return result;
 }
 
-ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int depth, const int ply, const Color colorToMove)
+ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int depth, const int ply)
 {
     if (this->stopSearch)
         return SearchResult();
@@ -1076,6 +1078,8 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
         this->stopSearch = true;
         return SearchResult();
     }
+
+    const Color colorToMove = this->activePlayer;
 
     // Check the transposition table entry
     int TTIndex = this->boardZobristHash & (this->transpositionTableSize - 1);
@@ -1111,7 +1115,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
         return SearchResult(evaluate());
 
     uint64_t squaresAttackingKing = getAttacksBitboard(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1));
-    MoveList moves = squaresAttackingKing != 0ULL ? getPseudolegalMovesInCheck(colorToMove, squaresAttackingKing) : getPseudolegalMoves(colorToMove);
+    MoveList moves = squaresAttackingKing != 0ULL ? getPseudolegalMovesInCheck(squaresAttackingKing) : getPseudolegalMoves();
     sortMoves(moves);
     
     if (colorToMove == Color::WHITE)
@@ -1121,12 +1125,12 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
 
         for (int i = 0; i < moves.numberOfMoves; i++)
         {
-            makeMove(moves.moves[i], colorToMove);
+            makeMove(moves.moves[i]);
 
             // Check if the move is legal
             if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
             {
-                SearchResult moveResult(moves.moves[i], minimax(alpha, beta, depth - 1, ply + 1, Color::BLACK).score);
+                SearchResult moveResult(moves.moves[i], minimax(alpha, beta, depth - 1, ply + 1).score);
 
                 if (moveResult.score > result.score)
                 {
@@ -1138,7 +1142,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                 
                 if (moveResult.score >= beta)
                 {
-                    undoMove(colorToMove);
+                    undoMove();
 
                     // Store the result in the transposition table
                     transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
@@ -1147,7 +1151,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                 }
             }
 
-            undoMove(colorToMove);
+            undoMove();
         }
 
         if (result.score == INT_MIN) // No legal move found
@@ -1173,12 +1177,12 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
 
         for (int i = 0; i < moves.numberOfMoves; i++)
         {
-            makeMove(moves.moves[i], colorToMove);
+            makeMove(moves.moves[i]);
 
             // Check if the move is legal
             if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
             {
-                SearchResult moveResult(moves.moves[i], minimax(alpha, beta, depth - 1, ply + 1, Color::WHITE).score);
+                SearchResult moveResult(moves.moves[i], minimax(alpha, beta, depth - 1, ply + 1).score);
 
                 if (moveResult.score < result.score)
                 {
@@ -1190,7 +1194,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
 
                 if (moveResult.score <= alpha)
                 {
-                    undoMove(colorToMove);
+                    undoMove();
 
                     // Store the result in the transposition table
                     transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
@@ -1199,7 +1203,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                 }
             }
 
-            undoMove(colorToMove);
+            undoMove();
         }
 
         if (result.score == INT_MAX) // No legal move found
@@ -1242,37 +1246,38 @@ std::string ChessEngine::getSquareNotation(const int square) const
     return std::string(1, file) + std::to_string(rank);
 }
 
-MoveList ChessEngine::getPseudolegalMoves(const Color color) const
+MoveList ChessEngine::getPseudolegalMoves() const
 {
     MoveList moveList;
 
-    addPawnMoves(color, moveList);
-    addKnightMoves(color, moveList);
-    addKingMoves(color, moveList);
-    addRookMoves(color, moveList);
-    addBishopMoves(color, moveList);
-    addQueenMoves(color, moveList);
+    addPawnMoves(moveList);
+    addKnightMoves(moveList);
+    addKingMoves(moveList);
+    addRookMoves(moveList);
+    addBishopMoves(moveList);
+    addQueenMoves(moveList);
 
     return moveList;
 }
 
-MoveList ChessEngine::getLegalMoves(const Color color)
+MoveList ChessEngine::getLegalMoves()
 {
-    MoveList pseudolegalMoves = getPseudolegalMoves(color);
+    const Color colorToMove = this->activePlayer;
+    MoveList pseudolegalMoves = getPseudolegalMoves();
     MoveList legalMoves;
 
     for (int i = 0; i < pseudolegalMoves.numberOfMoves; i++)
     {
-        makeMove(pseudolegalMoves.moves[i], color);
-        if (!isAttacked(_tzcnt_u64(pieces[color][KING]), static_cast<Color>(color ^ 1)))
+        makeMove(pseudolegalMoves.moves[i]);
+        if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
             legalMoves.add(pseudolegalMoves.moves[i]);
-        undoMove(color);
+        undoMove();
     }
 
     return legalMoves;
 }
 
-void ChessEngine::makeMove(const Move move, const Color colorToMove)
+void ChessEngine::makeMove(const Move move)
 {
     // Extract move information
     uint8_t toSquare = move.to();
@@ -1287,10 +1292,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         PieceType movingPieceType = squarePieceType[fromSquare];
 
         // Move the piece
-        pieces[colorToMove][movingPieceType] ^= fromSquareMask;
-        pieces[colorToMove][movingPieceType] ^= toSquareMask;
-        allPieces[colorToMove] ^= fromSquareMask;
-        allPieces[colorToMove] ^= toSquareMask;
+        pieces[activePlayer][movingPieceType] ^= fromSquareMask;
+        pieces[activePlayer][movingPieceType] ^= toSquareMask;
+        allPieces[activePlayer] ^= fromSquareMask;
+        allPieces[activePlayer] ^= toSquareMask;
         // Update zobrist hash for the moving piece
         boardZobristHash ^= pieceZobristHash[movingPieceType][fromSquare];
         boardZobristHash ^= pieceZobristHash[movingPieceType][toSquare];
@@ -1309,8 +1314,8 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE)
         {
-            pieces[colorToMove ^ 1][capturedPieceType] ^= toSquareMask;
-            allPieces[colorToMove ^ 1] ^= toSquareMask;
+            pieces[activePlayer ^ 1][capturedPieceType] ^= toSquareMask;
+            allPieces[activePlayer ^ 1] ^= toSquareMask;
 
             // Update zobrist hash for captured piece
             boardZobristHash ^= pieceZobristHash[capturedPieceType][toSquare];
@@ -1350,13 +1355,13 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Update castling rights
         if (movingPieceType == KING)
         {
-            if (colorToMove == Color::WHITE)
+            if (activePlayer == Color::WHITE)
             {
                 boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 castlingRights &= ~(whiteCastleQueenSide | whiteCastleKingSide);
                 boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
             }
-            else if (colorToMove == Color::BLACK)
+            else if (activePlayer == Color::BLACK)
             {
                 boardZobristHash ^= castlingRightsZobristHash[castlingRights & 0xF];
                 castlingRights &= ~(blackCastleQueenSide | blackCastleKingSide);
@@ -1410,10 +1415,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         PieceType promotionType = promotionPieceToPieceType[move.promotionPiece()];
 
         // Move and promote the pawn
-        pieces[colorToMove][PAWN] ^= fromSquareMask;
-        pieces[colorToMove][promotionType] ^= toSquareMask;
-        allPieces[colorToMove] ^= fromSquareMask;
-        allPieces[colorToMove] ^= toSquareMask;
+        pieces[activePlayer][PAWN] ^= fromSquareMask;
+        pieces[activePlayer][promotionType] ^= toSquareMask;
+        allPieces[activePlayer] ^= fromSquareMask;
+        allPieces[activePlayer] ^= toSquareMask;
         // Update zobrist hash for the promoting pawn
         boardZobristHash ^= pieceZobristHash[PAWN][fromSquare];
         boardZobristHash ^= pieceZobristHash[promotionType][toSquare];
@@ -1432,8 +1437,8 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE)
         {
-            pieces[colorToMove ^ 1][capturedPieceType] ^= toSquareMask;
-            allPieces[colorToMove ^ 1] ^= toSquareMask;
+            pieces[activePlayer ^ 1][capturedPieceType] ^= toSquareMask;
+            allPieces[activePlayer ^ 1] ^= toSquareMask;
 
             // Update zobrist hash for captured piece
             boardZobristHash ^= pieceZobristHash[capturedPieceType][toSquare];
@@ -1527,19 +1532,19 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         }
 
         // Move the king
-        pieces[colorToMove][KING] ^= fromSquareMask;
-        pieces[colorToMove][KING] ^= toSquareMask;
-        allPieces[colorToMove] ^= fromSquareMask;
-        allPieces[colorToMove] ^= toSquareMask;
+        pieces[activePlayer][KING] ^= fromSquareMask;
+        pieces[activePlayer][KING] ^= toSquareMask;
+        allPieces[activePlayer] ^= fromSquareMask;
+        allPieces[activePlayer] ^= toSquareMask;
         // Update zobrist hash for the moving king
         boardZobristHash ^= pieceZobristHash[KING][fromSquare];
         boardZobristHash ^= pieceZobristHash[KING][toSquare];
 
         // Move the rook
-        pieces[colorToMove][ROOK] ^= rookFromSquareMask;
-        pieces[colorToMove][ROOK] ^= rookToSquareMask;
-        allPieces[colorToMove] ^= rookFromSquareMask;
-        allPieces[colorToMove] ^= rookToSquareMask;
+        pieces[activePlayer][ROOK] ^= rookFromSquareMask;
+        pieces[activePlayer][ROOK] ^= rookToSquareMask;
+        allPieces[activePlayer] ^= rookFromSquareMask;
+        allPieces[activePlayer] ^= rookToSquareMask;
         // Update zobrist hash for the moving rook
         boardZobristHash ^= pieceZobristHash[ROOK][rookFromSquare];
         boardZobristHash ^= pieceZobristHash[ROOK][rookToSquare];
@@ -1560,10 +1565,10 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
     if (moveType == Move::MoveType::EN_PASSANT)
     {
         // Move the pawn
-        pieces[colorToMove][PAWN] ^= fromSquareMask;
-        pieces[colorToMove][PAWN] ^= toSquareMask;
-        allPieces[colorToMove] ^= fromSquareMask;
-        allPieces[colorToMove] ^= toSquareMask;
+        pieces[activePlayer][PAWN] ^= fromSquareMask;
+        pieces[activePlayer][PAWN] ^= toSquareMask;
+        allPieces[activePlayer] ^= fromSquareMask;
+        allPieces[activePlayer] ^= toSquareMask;
         // Update zobrist hash for the moving pawn
         boardZobristHash ^= pieceZobristHash[PAWN][fromSquare];
         boardZobristHash ^= pieceZobristHash[PAWN][toSquare];
@@ -1579,13 +1584,13 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         // Compute the captured pawn coordinates
         int capturedPawnSquare = 0;
         uint64_t capturedPawnMask = 0ULL;
-        if (colorToMove == Color::WHITE)
+        if (activePlayer == Color::WHITE)
         {
             // Go one square down
             capturedPawnSquare = toSquare - 8;
             capturedPawnMask = 1ULL << capturedPawnSquare;
         }
-        else if (colorToMove == Color::BLACK)
+        else if (activePlayer == Color::BLACK)
         {
             // Go one square up
             capturedPawnSquare = toSquare + 8;
@@ -1593,8 +1598,8 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
         }
 
         // Capture the enemy pawn
-        pieces[colorToMove ^ 1][PAWN] ^= capturedPawnMask;
-        allPieces[colorToMove ^ 1] ^= capturedPawnMask;
+        pieces[activePlayer ^ 1][PAWN] ^= capturedPawnMask;
+        allPieces[activePlayer ^ 1] ^= capturedPawnMask;
         // Update the zobrist hash for the captured pawn
         boardZobristHash ^= pieceZobristHash[PAWN][capturedPawnSquare];
 
@@ -1611,8 +1616,11 @@ void ChessEngine::makeMove(const Move move, const Color colorToMove)
     }
 }
 
-void ChessEngine::undoMove(const Color colorThatMoved)
+void ChessEngine::undoMove()
 {
+    // Get the color of the player that made the last move
+    const Color colorThatMoved = static_cast<Color>(this->activePlayer ^ 1);
+
     // Get last move information
     UndoHelper undoHelper = undoStack.top();
     undoStack.pop();
@@ -1846,13 +1854,15 @@ void ChessEngine::undoMove(const Color colorThatMoved)
     }
 }
 
-unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
+unsigned long long ChessEngine::perft(const int depth)
 {
     if (depth == 0)
         return 1;
 
+    const Color colorToMove = this->activePlayer;
+
     uint64_t squaresAttackingKing = getAttacksBitboard(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1));
-    MoveList movelist = squaresAttackingKing ? getPseudolegalMovesInCheck(colorToMove, squaresAttackingKing) : getPseudolegalMoves(colorToMove);
+    MoveList movelist = squaresAttackingKing ? getPseudolegalMovesInCheck(squaresAttackingKing) : getPseudolegalMoves();
 
     /*if (depth == 1)
     {
@@ -1860,7 +1870,7 @@ unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
         for (int i = 0; i < movelist.numberOfMoves; i++)
         {
             makeMove(movelist.moves[i], colorToMove);
-            if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
+            if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING])))
                 result++;
             undoMove(colorToMove);
         }
@@ -1871,22 +1881,22 @@ unsigned long long ChessEngine::perft(const int depth, const Color colorToMove)
 
     for (int i = 0; i < movelist.numberOfMoves; i++)
     {
-        makeMove(movelist.moves[i], colorToMove);
+        makeMove(movelist.moves[i]);
         if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
-            result += perft(depth - 1, static_cast<Color>(1 ^ colorToMove));
-        undoMove(colorToMove);
+            result += perft(depth - 1);
+        undoMove();
     }
 
     return result;
 }
 
-ChessEngine::SearchResult ChessEngine::search(const int depth, const Color colorToMove)
+ChessEngine::SearchResult ChessEngine::search(const int depth)
 {
     //return negamax(INT_MIN, INT_MAX, depth, colorToMove);
-    return minimax(INT_MIN, INT_MAX, depth, 1, colorToMove);
+    return minimax(INT_MIN, INT_MAX, depth, 1);
 }
 
-ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const Color colorToMove, const int timeLimit)
+ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLimit)
 {
     this->searchStartTime = std::chrono::high_resolution_clock::now();
     this->timeLimitInMilliseconds = timeLimit;
@@ -1896,7 +1906,7 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const Color colo
     for (int depth = 1; /*TODO Choose depth limit */!this->stopSearch; depth++)
     {
         auto start = std::chrono::high_resolution_clock::now();
-        SearchResult result = this->minimax(INT_MIN, INT_MAX, depth, 1, colorToMove);
+        SearchResult result = this->minimax(INT_MIN, INT_MAX, depth, 1);
         auto stop = std::chrono::high_resolution_clock::now();
 
         if (!this->stopSearch)

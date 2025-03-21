@@ -56,16 +56,16 @@ public:
 	std::string bitboardToString(const uint64_t bitboard) const; // Get a string representation of a bitboard
 	std::string getSquareNotation(const int square) const; // Get the notation of a square (notation of square 0 is A1)
 
-	MoveList getPseudolegalMoves(const Color color) const; // Get the pseudolegal moves of the given color
-	MoveList getLegalMoves(const Color color); // Get the legal moves of the given color
+	MoveList getPseudolegalMoves() const; // Get the pseudolegal moves of the active player
+	MoveList getLegalMoves(); // Get the legal moves of the active player
 
-	void makeMove(const Move move, const Color colorToMove); // Make a move on the board as the given color
-	void undoMove(const Color colorThatMoved); // Undo the last move, color of the player that moved required
+	void makeMove(const Move move); // Make a move on the board
+	void undoMove(); // Undo the last move
 
-	unsigned long long perft(const int depth, const Color colorToMove); // Perft of a given depth starting with a given color
+	unsigned long long perft(const int depth); // Perft of a given depth
 
-	SearchResult search(const int depth, const Color colorToMove); // Search for the best move of the given color by going to the given depth in the game tree
-	SearchResult iterativeDeepeningSearch(const Color colorToMove, const int timeLimit); // Ssearch for the best move of the given color within the time limit (in milliseconds)
+	SearchResult search(const int depth); // Search for the best move of the active player by going to the given depth in the game tree
+	SearchResult iterativeDeepeningSearch(const int timeLimit); // Ssearch for the best move of the active player within the time limit (in milliseconds)
 	std::chrono::steady_clock::time_point searchStartTime; // The time the search started
 	int timeLimitInMilliseconds; // The time allocated to the search in milliseconds
 	bool stopSearch; // Flag set to true when the time limit is exceeded
@@ -130,17 +130,17 @@ private:
     void initializeBishopOccupancyMasks(); // Initialize bishop occupancy masks
     void initializeBishopMovesetBitboards(); // Initialize bishop moveset bitboards
 
-    void addPawnMoves(const Color color, MoveList& moveList, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the pawn moves of the given color (within the mask) to the move list
-    void addKnightMoves(const Color color, MoveList& moveList, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the knight moves of the given color (within the mask) to the move list
-    void addKingMoves(const Color color, MoveList& movelist) const; // Add all the king moves of the given color to the move list
-    void addRookMoves(const Color color, MoveList& movelist, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the rook moves of the given color (within the mask) to the move list
-    void addBishopMoves(const Color color, MoveList& movelist, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the bishop moves of the given color (within the mask) to the move list
-    void addQueenMoves(const Color color, MoveList& movelist, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the queen moves of the given color (within the mask) to the move list
+    void addPawnMoves(MoveList& moveList, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the pawn moves of the active player (within the mask) to the move list
+    void addKnightMoves(MoveList& moveList, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the knight moves of the active player (within the mask) to the move list
+    void addKingMoves(MoveList& movelist) const; // Add all the king moves of the active player to the move list
+    void addRookMoves(MoveList& movelist, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the rook moves of the active player (within the mask) to the move list
+    void addBishopMoves(MoveList& movelist, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the bishop moves of the active player (within the mask) to the move list
+    void addQueenMoves(MoveList& movelist, const uint64_t mask = 0xFFFFFFFFFFFFFFFF) const; // Add all the queen moves of the active player (within the mask) to the move list
 
     bool isAttacked(const int square, const Color color) const; // Returns true if the given square is attacked by the given color, false otherwise
 	uint64_t getAttacksBitboard(const int square, const Color color) const; // Returns the number of attacks the given color has on the given square
 
-	MoveList getPseudolegalMovesInCheck(const Color color, const uint64_t attackingSquares) const; // Get the pseudolegal moves of the given color when in check (checked by the attacking squares)
+	MoveList getPseudolegalMovesInCheck(const uint64_t attackingSquares) const; // Get the pseudolegal moves of the active player when in check (checked by the attacking squares)
 
 	bool isValid(const Move move); // Check if the given move is valid in the current state of the board
 
@@ -150,7 +150,7 @@ private:
 	int evaluate() const; // Compute an evaluation of the current state of the board. Positive values favour white, negative values favour black.
 	
 	SearchResult negamax(int alpha, int beta, const int depth, const Color colorToMove); // Negamax algorithm with alpha beta pruning
-	SearchResult minimax(int alpha, int beta, const int depth, const int ply, const Color colorToMove); // Minimax algorithm with alpha beta pruning
+	SearchResult minimax(int alpha, int beta, const int depth, const int ply); // Minimax algorithm with alpha beta pruning
 };
 
 constexpr int CHECKMATE_SCORE[2] = { SHRT_MIN, SHRT_MAX };
