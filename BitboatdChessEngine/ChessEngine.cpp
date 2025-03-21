@@ -1024,48 +1024,6 @@ int ChessEngine::evaluate() const
     return result;
 }
 
-ChessEngine::SearchResult ChessEngine::negamax(int alpha, int beta, const int depth, const Color colorToMove)
-{
-    if (depth == 0)
-    {
-        int color = colorToMove == Color::WHITE ? 1 : -1;
-        return SearchResult(evaluate() * color);
-    }
-
-    SearchResult result(INT_MIN);
-
-    MoveList moves = getPseudolegalMoves();
-    for (int i = 0; i < moves.numberOfMoves; i++)
-    {
-        makeMove(moves.moves[i]);
-
-        // Check if the move is legal
-        if (!isAttacked(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1)))
-        {
-            SearchResult moveResult(moves.moves[i], -negamax(-beta, -alpha, depth - 1, static_cast<Color>(colorToMove ^ 1)).score);
-            
-            if (moveResult.score > result.score)
-            {
-                result = moveResult;
-
-                if (moveResult.score > alpha)
-                    alpha = moveResult.score;
-            }
-
-            // TODO Fix alpha beta pruning
-            if (moveResult.score >= beta)
-            {
-                undoMove();
-                return result;
-            }
-        }
-
-        undoMove();
-    }
-
-    return result;
-}
-
 ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int depth, const int ply)
 {
     if (this->stopSearch)
