@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <stdexcept>
 
 class Move {
 private:
@@ -33,6 +34,9 @@ public:
             ((promoPiece & 0x3) << 14);      // 2 bits for promotion piece
     }
 
+    // UCI Constructor
+    Move(const std::string moveString);
+
     // The position from which the piece moves
     inline int from() const { return moveData & 0x3F; }
     // The position the piece moves to
@@ -46,6 +50,8 @@ public:
     inline uint16_t raw() const { return moveData; }
 
     std::string toString() const;
+
+    bool operator == (const Move& other) const;
 };
 
 struct MoveList
