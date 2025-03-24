@@ -241,6 +241,26 @@ void ChessEngine::updateHistoryTable(const Color color, const Move move, const i
         maxHistoryValueReached = true;
 }
 
+void ChessEngine::updateKillerMoves(const Move move, const int ply)
+{
+    if (move == this->killerMoves[ply][1])
+    {
+        this->killerMoves[ply][0] = move;
+        return;
+    }
+
+    if (move != this->killerMoves[ply][0])
+    {
+        this->killerMoves[ply][1] = this->killerMoves[ply][0];
+        this->killerMoves[ply][0] = move;
+    }
+}
+
+void ChessEngine::clearKillerMoves()
+{
+    memset(this->killerMoves, 0, sizeof(killerMoves));
+}
+
 void ChessEngine::initializeBitboards() {
     // Standard chess starting position for each piece type
     pieces[WHITE][PAWN] = 0x000000000000FF00ULL;
@@ -1000,30 +1020,53 @@ bool ChessEngine::isValid(const Move move)
 
 bool ChessEngine::compareMoves(const Move firstMove, const Move secondMove) const
 {
-    if (pieceValue[squarePieceType[firstMove.to()]] && pieceValue[squarePieceType[secondMove.to()]]) // Both moves are captures
+    int firstTo = firstMove.to();
+    int secondTo = secondMove.to();
+
+    if (pieceValue[squarePieceType[firstTo]] && pieceValue[squarePieceType[secondTo]]) // Both moves are captures
     {
-        if (pieceValue[squarePieceType[firstMove.to()]] > pieceValue[squarePieceType[secondMove.to()]])
+        if (pieceValue[squarePieceType[firstTo]] > pieceValue[squarePieceType[secondTo]])
             return true;
 
-        if (pieceValue[squarePieceType[firstMove.to()]] == pieceValue[squarePieceType[secondMove.to()]])
+        if (pieceValue[squarePieceType[firstTo]] == pieceValue[squarePieceType[secondTo]])
             if (pieceValue[squarePieceType[firstMove.from()]] < pieceValue[squarePieceType[secondMove.from()]])
                 return true;
     }
-    else if (pieceValue[squarePieceType[firstMove.to()]]) // Only the first move is a capture
+    else if (pieceValue[squarePieceType[firstTo]]) // Only the first move is a capture
     {
         return true;
     }
-    else if (pieceValue[squarePieceType[secondMove.to()]]) // Only the second move is a capture
+    else if (pieceValue[squarePieceType[secondTo]]) // Only the second move is a capture
     {
         return false;
     }
     else
     {
+        // Use killer move heuristic
+        /*bool isFirstMoveKiller = (firstMove == killerMoves[currentPly][0] || firstMove == killerMoves[currentPly][1]);
+        bool isSecondMoveKiller = (secondMove == killerMoves[currentPly][0] || secondMove == killerMoves[currentPly][1]);
+        if (isFirstMoveKiller && isSecondMoveKiller)
+            return historyTable[activePlayer][firstMove.from()][firstMove.to()] > historyTable[activePlayer][secondMove.from()][secondMove.to()];
+        if (isFirstMoveKiller)
+            return true;
+        if (isSecondMoveKiller)
+            return false;*/
+
         // Use history heuristic
         return historyTable[activePlayer][firstMove.from()][firstMove.to()] > historyTable[activePlayer][secondMove.from()][secondMove.to()];
     }
 
     return false;
+}
+
+int ChessEngine::assignScore(const Move move) const
+{
+    if (pieceValue[squarePieceType[move.to()]])
+        return MAX_HISTORY_VALUE + 10000 + pieceValue[squarePieceType[move.to()]] - pieceValue[squarePieceType[move.from()]];
+    else if (move == killerMoves[currentPly][0] || move == killerMoves[currentPly][1])
+        return MAX_HISTORY_VALUE + 10000;
+    else
+        return historyTable[activePlayer][move.from()][move.to()];
 }
 
 void ChessEngine::sortMoves(MoveList& movelist) const
@@ -1116,6 +1159,9 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
     if (depth == 0)
         return SearchResult(evaluate());
 
+    // Store the current ply
+    this->currentPly = ply;
+
     uint64_t squaresAttackingKing = getAttacksBitboard(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1));
     MoveList moves = squaresAttackingKing != 0ULL ? getPseudolegalMovesInCheck(squaresAttackingKing) : getPseudolegalMoves();
     sortMoves(moves);
@@ -1150,7 +1196,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                     transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
 
                     // Update the history table for non capture moves
-                    if (squarePieceType[moves.moves[i].to()] != PieceType::NONE)
+                    if (squarePieceType[moves.moves[i].to()] == PieceType::NONE)
                         updateHistoryTable(colorToMove, moves.moves[i], depth);
 
                     return result;
@@ -1175,7 +1221,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
             transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::UPPER_BOUND);
 
         // Update the history table for non capture moves
-        if (squarePieceType[result.move.to()] != PieceType::NONE)
+        if (squarePieceType[result.move.to()] == PieceType::NONE)
             updateHistoryTable(colorToMove, result.move, depth);
 
         return result;
@@ -1210,7 +1256,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                     transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
 
                     // Update the history table for non capture moves
-                    if (squarePieceType[moves.moves[i].to()] != PieceType::NONE)
+                    if (squarePieceType[moves.moves[i].to()] == PieceType::NONE)
                         updateHistoryTable(colorToMove, moves.moves[i], depth);
 
                     return result;
@@ -1234,7 +1280,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
             transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::UPPER_BOUND);
 
         // Update the history table for non capture moves
-        if (squarePieceType[result.move.to()] != PieceType::NONE)
+        if (squarePieceType[result.move.to()] == PieceType::NONE)
             updateHistoryTable(colorToMove, result.move, depth);
 
         return result;
@@ -1929,6 +1975,7 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
             this->decayHistoryTable(); // Scale the history table down to avoid overflow
             this->maxHistoryValueReached = false; // Reset the flag
         }
+        this->clearKillerMoves(); // Clear the killer moves table
         SearchResult result = this->minimax(INT_MIN, INT_MAX, depth, 1);
         auto stop = std::chrono::high_resolution_clock::now();
 

@@ -10,6 +10,8 @@
 #include "Move.h"
 #include "UndoHelper.h"
 
+constexpr int MAX_DEPTH = 64;
+
 class ChessEngine {
 public:
 	enum PieceType {
@@ -115,6 +117,10 @@ private:
 	void decayHistoryTable(); // Scale down the values in the history heuristic (used to avoid overflow)
 	void updateHistoryTable(const Color color, const Move move, const int depth); // Update the history table for the given color, move and depth
 
+	Move killerMoves[MAX_DEPTH][2]; // Table that stores killer moves by ply
+	void updateKillerMoves(const Move move, const int ply); // Update the killer moves table
+	void clearKillerMoves(); // Clear the killer moves table
+
     std::stack<UndoHelper> undoStack; // Stack information about every move (for undo purposes)
 
     void initializeBitboards(); // Initialize bitboards with the classic chess setup
@@ -152,13 +158,13 @@ private:
 
 	bool compareMoves(const Move firstMove, const Move secondMove) const; // Compare two moves using MVV-LVA
 	void sortMoves(MoveList& movelist) const; // Sort the move list using MVV-LVA
+	int assignScore(const Move move) const;
 
 	int evaluate() const; // Compute an evaluation of the current state of the board. Positive values favour white, negative values favour black.
 	
 	SearchResult minimax(int alpha, int beta, const int depth, const int ply); // Minimax algorithm with alpha beta pruning
+	int currentPly; // The ply the search is currently at
 };
-
-constexpr int MAX_DEPTH = 64;
 
 constexpr int CHECKMATE_SCORE[2] = { SHRT_MIN, SHRT_MAX };
 
