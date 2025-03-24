@@ -158,6 +158,8 @@ private:
 	SearchResult minimax(int alpha, int beta, const int depth, const int ply); // Minimax algorithm with alpha beta pruning
 };
 
+constexpr int MAX_DEPTH = 64;
+
 constexpr int CHECKMATE_SCORE[2] = { SHRT_MIN, SHRT_MAX };
 
 constexpr int pieceValue[7] =

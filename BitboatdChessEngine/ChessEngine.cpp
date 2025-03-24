@@ -1921,7 +1921,7 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
     this->stopSearch = false;
     SearchResult bestMove;
 
-    for (int depth = 1; /*TODO Choose depth limit */!this->stopSearch; depth++)
+    for (int depth = 1; depth < MAX_DEPTH && !this->stopSearch; depth++)
     {
         auto start = std::chrono::high_resolution_clock::now();
         if (this->maxHistoryValueReached)
