@@ -110,6 +110,11 @@ private:
 	const int transpositionTableSize = 1 << 25; // The size of the transposition table
 	TranspositionTableEntry* transpositionTable; // Transposition table
 
+	int historyTable[2][64][64]; // Table used for history heuristic
+	bool maxHistoryValueReached; // Flag set when the max history value is reached
+	void decayHistoryTable(); // Scale down the values in the history heuristic (used to avoid overflow)
+	void updateHistoryTable(const Color color, const Move move, const int depth); // Update the history table for the given color, move and depth
+
     std::stack<UndoHelper> undoStack; // Stack information about every move (for undo purposes)
 
     void initializeBitboards(); // Initialize bitboards with the classic chess setup
@@ -117,6 +122,7 @@ private:
     void initializePromotionPieceToPieceTypeArray(); // Initialize the array that stores the corresponding piece type for every promotion type
     void initializePositionSpecialStatistics(); // Initialize castling rights, en passant squares, number of moves
 	void initializeZobristHash(); // Initialize zobrist hashes
+	void initializeMoveOrderingTables(); // Initialize the tables used for move ordering
 
     void initializeSquaresBetweenBitboards(); // Initialize the bitboards containing the squares between two other squares
 
@@ -154,14 +160,15 @@ private:
 
 constexpr int CHECKMATE_SCORE[2] = { SHRT_MIN, SHRT_MAX };
 
-constexpr int pieceValue[6] =
+constexpr int pieceValue[7] =
 {
 	100,	// Pawn
 	320,	// Knight
 	330,	// Bishop
 	500,	// Rook
 	900,	// Queen
-	0   // King
+	0,		// King
+	0		// None
 };
 
 // Table describing positional value of each piece type
@@ -251,3 +258,5 @@ constexpr int positionValue[7][64] =
 		-50, -30, -30, -30, -30, -30, -30, -50
 	}
 };
+
+constexpr int MAX_HISTORY_VALUE = 1 << 29;

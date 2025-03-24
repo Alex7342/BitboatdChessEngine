@@ -7,6 +7,7 @@ ChessEngine::ChessEngine() {
     initializePromotionPieceToPieceTypeArray();
     initializePositionSpecialStatistics();
     initializeZobristHash();
+    initializeMoveOrderingTables();
     this->transpositionTable = new TranspositionTableEntry[this->transpositionTableSize];
     this->activePlayer = Color::WHITE;
 }
@@ -113,6 +114,7 @@ void ChessEngine::loadFENPosition(const std::string position)
     }
 
     initializeSquarePieceTypeArray();
+    initializeMoveOrderingTables();
 }
 
 uint64_t ChessEngine::getAllPieces() const
@@ -206,11 +208,37 @@ void ChessEngine::initializeZobristHash()
         this->boardZobristHash ^= this->enPassantTargetSquareZobristHash[_tzcnt_u64(this->enPassantTargetBitboard)];
 }
 
+void ChessEngine::initializeMoveOrderingTables()
+{
+    this->maxHistoryValueReached = false;
+    for (int color = 0; color < 2; color++)
+        for (int from = 0; from < 64; from++)
+            for (int to = 0; to < 64; to++)
+                this->historyTable[color][from][to] = 0;
+}
+
 void ChessEngine::initializeSquaresBetweenBitboards()
 {
     for (int firstSquare = 0; firstSquare < 64; firstSquare++)
         for (int secondSquare = 0; secondSquare < 64; secondSquare++)
             squaresBetween[firstSquare][secondSquare] = BitboardGenerator::generateSquaresBetween(firstSquare, secondSquare);
+}
+
+void ChessEngine::decayHistoryTable()
+{
+    for (int color = 0; color < 2; color++)
+        for (int from = 0; from < 64; from++)
+            for (int to = 0; to < 64; to++)
+                this->historyTable[color][from][to] /= 2;
+}
+
+void ChessEngine::updateHistoryTable(const Color color, const Move move, const int depth)
+{
+    int from = move.from();
+    int to = move.to();
+    historyTable[color][from][to] = std::min(historyTable[color][from][to] + depth * depth, MAX_HISTORY_VALUE);
+    if (historyTable[color][from][to] == MAX_HISTORY_VALUE)
+        maxHistoryValueReached = true;
 }
 
 void ChessEngine::initializeBitboards() {
@@ -972,12 +1000,28 @@ bool ChessEngine::isValid(const Move move)
 
 bool ChessEngine::compareMoves(const Move firstMove, const Move secondMove) const
 {
-    if (pieceValue[squarePieceType[firstMove.to()]] > pieceValue[squarePieceType[secondMove.to()]])
-        return true;
-
-    if (pieceValue[squarePieceType[firstMove.to()]] == pieceValue[squarePieceType[secondMove.to()]])
-        if (pieceValue[squarePieceType[firstMove.from()]] < pieceValue[squarePieceType[secondMove.from()]])
+    if (pieceValue[squarePieceType[firstMove.to()]] && pieceValue[squarePieceType[secondMove.to()]]) // Both moves are captures
+    {
+        if (pieceValue[squarePieceType[firstMove.to()]] > pieceValue[squarePieceType[secondMove.to()]])
             return true;
+
+        if (pieceValue[squarePieceType[firstMove.to()]] == pieceValue[squarePieceType[secondMove.to()]])
+            if (pieceValue[squarePieceType[firstMove.from()]] < pieceValue[squarePieceType[secondMove.from()]])
+                return true;
+    }
+    else if (pieceValue[squarePieceType[firstMove.to()]]) // Only the first move is a capture
+    {
+        return true;
+    }
+    else if (pieceValue[squarePieceType[secondMove.to()]]) // Only the second move is a capture
+    {
+        return false;
+    }
+    else
+    {
+        // Use history heuristic
+        return historyTable[activePlayer][firstMove.from()][firstMove.to()] > historyTable[activePlayer][secondMove.from()][secondMove.to()];
+    }
 
     return false;
 }
@@ -1105,6 +1149,10 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                     // Store the result in the transposition table
                     transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
 
+                    // Update the history table for non capture moves
+                    if (squarePieceType[moves.moves[i].to()] != PieceType::NONE)
+                        updateHistoryTable(colorToMove, moves.moves[i], depth);
+
                     return result;
                 }
             }
@@ -1125,6 +1173,10 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
             transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::EXACT);
         else
             transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::UPPER_BOUND);
+
+        // Update the history table for non capture moves
+        if (squarePieceType[result.move.to()] != PieceType::NONE)
+            updateHistoryTable(colorToMove, result.move, depth);
 
         return result;
     }
@@ -1157,6 +1209,10 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                     // Store the result in the transposition table
                     transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
 
+                    // Update the history table for non capture moves
+                    if (squarePieceType[moves.moves[i].to()] != PieceType::NONE)
+                        updateHistoryTable(colorToMove, moves.moves[i], depth);
+
                     return result;
                 }
             }
@@ -1176,6 +1232,10 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
             transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::EXACT);
         else
             transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::UPPER_BOUND);
+
+        // Update the history table for non capture moves
+        if (squarePieceType[result.move.to()] != PieceType::NONE)
+            updateHistoryTable(colorToMove, result.move, depth);
 
         return result;
     }
@@ -1864,6 +1924,11 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
     for (int depth = 1; /*TODO Choose depth limit */!this->stopSearch; depth++)
     {
         auto start = std::chrono::high_resolution_clock::now();
+        if (this->maxHistoryValueReached)
+        {
+            this->decayHistoryTable(); // Scale the history table down to avoid overflow
+            this->maxHistoryValueReached = false; // Reset the flag
+        }
         SearchResult result = this->minimax(INT_MIN, INT_MAX, depth, 1);
         auto stop = std::chrono::high_resolution_clock::now();
 
