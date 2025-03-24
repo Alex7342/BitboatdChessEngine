@@ -52,6 +52,7 @@ public:
     std::string toString() const;
 
     bool operator == (const Move& other) const;
+    bool operator != (const Move& other) const;
 };
 
 struct MoveList

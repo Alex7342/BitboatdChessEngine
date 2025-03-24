@@ -104,4 +104,9 @@ bool Move::operator==(const Move& other) const
 	return this->moveData == other.moveData;
 }
 
+bool Move::operator!=(const Move& other) const
+{
+	return this->moveData != other.moveData;
+}
+
 MoveList::MoveList() : numberOfMoves(0) {}
