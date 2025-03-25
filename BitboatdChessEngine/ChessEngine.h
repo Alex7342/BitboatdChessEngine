@@ -167,6 +167,7 @@ private:
 
 	int evaluate() const; // Compute an evaluation of the current state of the board. Positive values favour white, negative values favour black.
 	
+	int numberOfNodesVisited;
 	SearchResult minimax(int alpha, int beta, const int depth, const int ply); // Minimax algorithm with alpha beta pruning
 	int currentPly; // The ply the search is currently at
 };
