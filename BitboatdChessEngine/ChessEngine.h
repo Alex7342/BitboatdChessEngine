@@ -11,6 +11,7 @@
 #include "UndoHelper.h"
 
 constexpr int MAX_DEPTH = 64;
+constexpr int MAX_SEE_DEPTH = 16;
 
 class ChessEngine {
 public:
@@ -120,6 +121,10 @@ private:
 	Move killerMoves[MAX_DEPTH][2]; // Table that stores killer moves by ply
 	void updateKillerMoves(const Move move, const int ply); // Update the killer moves table
 	void clearKillerMoves(); // Clear the killer moves table
+
+	uint64_t getXrayAttacksToSquare(const int square, const Color color) const; // Get all x-ray attacks of the given color to the given square
+	int SEE(const int square, const Color color) const; // Static exchange evaluation for the given square and color
+	int recursiveSEE(const int square, const Color color) const; // Recursive static exchange evaluation for the given square and color
 
     std::stack<UndoHelper> undoStack; // Stack information about every move (for undo purposes)
 

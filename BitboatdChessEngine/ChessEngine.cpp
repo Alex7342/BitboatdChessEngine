@@ -261,6 +261,66 @@ void ChessEngine::clearKillerMoves()
     memset(this->killerMoves, 0, sizeof(killerMoves));
 }
 
+uint64_t ChessEngine::getXrayAttacksToSquare(const int square, const Color color) const
+{
+    uint64_t allAttacks = 0ULL;
+
+    // Check for pawn attacks
+    allAttacks |= pieces[color][PAWN] & pawnAttacks[color ^ 1][square];
+
+    // Check for knight attacks
+    allAttacks |= pieces[color][KNIGHT] & knightMovement[square];
+    
+    uint64_t allPiecesOnBoard = allPieces[WHITE] | allPieces[BLACK];
+
+    // Check for bishop attacks
+    uint64_t possibleBishopMoves = bishopMovement[bishopSquareOffset[square] + _pext_u64(allPiecesOnBoard & ~pieces[color][BISHOP] & ~pieces[color][QUEEN] & bishopOccupancyMask[square], bishopOccupancyMask[square])];
+    allAttacks |= pieces[color][BISHOP] & possibleBishopMoves;
+
+    // Check for rook attacks
+    uint64_t possibleRookMoves = rookMovement[rookSquareOffset[square] + _pext_u64(allPiecesOnBoard & ~pieces[color][ROOK] & ~pieces[color][QUEEN] & rookOccupancyMask[square], rookOccupancyMask[square])];
+    allAttacks |= pieces[color][ROOK] & possibleRookMoves;
+    
+
+    // Check for queen attacks
+    allAttacks |= pieces[color][QUEEN] & (possibleRookMoves | possibleBishopMoves);
+
+    // Check for king attacks
+    allAttacks |= pieces[color][KING] & kingMovement[square];
+
+    return allAttacks;
+}
+
+int ChessEngine::SEE(const int square, const Color color) const
+{
+    int gains[MAX_SEE_DEPTH] = { 0 };
+    int depth = 0;
+
+    int value = pieceValue[squarePieceType[square]];
+
+    uint64_t attackers[2];
+    int side = color;
+
+    attackers[color] = this->getXrayAttacksToSquare(square, color);
+    attackers[color ^ 1] = this->getXrayAttacksToSquare(square, static_cast<Color>(color ^ 1));
+
+    while (depth < MAX_SEE_DEPTH && attackers[side])
+    {
+        int attackerSquare = _tzcnt_u64(attackers[side]);
+        attackers[side] &= attackers[side] - 1;
+
+        gains[depth] = value = pieceValue[squarePieceType[attackerSquare]] - value;
+        depth++;
+
+        side = side ^ 1;
+    }
+
+    while (--depth)
+        gains[depth - 1] = std::min(-gains[depth], gains[depth - 1]);
+
+    return gains[0];
+}
+
 void ChessEngine::initializeBitboards() {
     // Standard chess starting position for each piece type
     pieces[WHITE][PAWN] = 0x000000000000FF00ULL;
@@ -1062,7 +1122,12 @@ bool ChessEngine::compareMoves(const Move firstMove, const Move secondMove) cons
 int ChessEngine::assignScore(const Move move) const
 {
     if (pieceValue[squarePieceType[move.to()]])
-        return MAX_HISTORY_VALUE + 10000 + pieceValue[squarePieceType[move.to()]] - pieceValue[squarePieceType[move.from()]];
+    {
+        int seeScore = this->SEE(move.to(), activePlayer);
+        if (seeScore >= 0)
+            return MAX_HISTORY_VALUE + 10000 + seeScore;
+        return 0;
+    }
     else if (move == killerMoves[currentPly][0] || move == killerMoves[currentPly][1])
         return MAX_HISTORY_VALUE + 10000;
     else
