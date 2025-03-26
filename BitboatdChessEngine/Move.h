@@ -23,7 +23,7 @@ public:
         QUEEN = 3
     };
 
-    // Default constructor
+    // Null move constructor
     Move();
 
     // Constructor
@@ -45,6 +45,9 @@ public:
     inline MoveType moveType() const { return static_cast<MoveType>((moveData >> 12) & 0x3); }
     // The type of piece to promote to (in case of pawn promotion)
     inline PromotionPiece promotionPiece() const { return static_cast<PromotionPiece>((moveData >> 14) & 0x3); }
+    
+    // Check if the move is null
+    inline bool isNull() const { return moveData == 0; }
 
     // Get raw move data
     inline uint16_t raw() const { return moveData; }
