@@ -1230,6 +1230,43 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
     this->currentPly = ply;
 
     uint64_t squaresAttackingKing = getAttacksBitboard(_tzcnt_u64(pieces[colorToMove][KING]), static_cast<Color>(colorToMove ^ 1));
+
+    if (!this->isAtRoot && !squaresAttackingKing && depth >= NULL_MOVE_DEPTH_THRESHOLD) // Null move pruning
+    {
+        if ((pieces[colorToMove][PAWN] | pieces[colorToMove][KING]) != allPieces[colorToMove]) // Avoid zugzwang positions
+        {
+            UndoHelper lastMove = this->undoStack.top();
+
+            if (lastMove.from() != 0 || lastMove.to() != 0) // Avoid consecutive null moves
+            {
+                makeMove(Move());
+
+                if (colorToMove == Color::WHITE)
+                {
+                    int score = minimax(beta - 1, beta, depth - NULL_MOVE_DEPTH_REDUCTION - 1, ply + 1).score;
+                    if (score >= beta)
+                    {
+                        undoMove();
+                        return SearchResult(beta);
+                    }
+                }
+                else
+                {
+                    int score = minimax(alpha, alpha + 1, depth - NULL_MOVE_DEPTH_REDUCTION - 1, ply + 1).score;
+                    if (score <= alpha)
+                    {
+                        undoMove();
+                        return SearchResult(alpha);
+                    }
+                }
+
+                undoMove();
+            }
+        }
+    }
+
+    this->isAtRoot = false;
+
     MoveList moves = squaresAttackingKing != 0ULL ? getPseudolegalMovesInCheck(squaresAttackingKing) : getPseudolegalMoves();
     sortMoves(moves);
     
@@ -1422,6 +1459,22 @@ MoveList ChessEngine::getLegalMoves()
 
 void ChessEngine::makeMove(const Move move)
 {
+    if (move.isNull()) // Make a null move
+    {
+        undoStack.push(UndoHelper(0, 0, castlingRights, enPassantTargetBitboard));
+        
+        // Update zobrist hash for en passant target square
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+        // Empty the en passant target bitboard
+        enPassantTargetBitboard = 0ULL;
+
+        // Change the active player
+        this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
+        this->boardZobristHash ^= this->changePlayerZobristHash;
+
+        return;
+    }
+
     // Extract move information
     uint8_t toSquare = move.to();
     uint8_t fromSquare = move.from();
@@ -1775,6 +1828,22 @@ void ChessEngine::undoMove()
     uint64_t fromSquareMask = 1ULL << fromSquare;
     Move::MoveType moveType = undoHelper.moveType();
 
+    if (toSquare == 0 && fromSquare == 0) // Null move
+    {
+        // Castling rights are not affected by null moves
+
+        // Restore the previous en passant target bitboard
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+        enPassantTargetBitboard = undoHelper.enPassantBitboard();
+        if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+
+        // Change the active player
+        this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
+        this->boardZobristHash ^= this->changePlayerZobristHash;
+
+        return;
+    }
+
     if (moveType == Move::MoveType::NORMAL)
     {
         // Find moving piece type
@@ -2056,6 +2125,7 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
             this->maxHistoryValueReached = false; // Reset the flag
         }
         numberOfNodesVisited = 0;
+        this->isAtRoot = true;
         this->clearKillerMoves(); // Clear the killer moves table
         SearchResult result = this->minimax(INT_MIN, INT_MAX, depth, 1);
         auto stop = std::chrono::high_resolution_clock::now();
@@ -2063,7 +2133,9 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
         if (!this->stopSearch)
         {
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
-            std::cout << "Depth " << depth << " reached in " << duration << "ms. Nodes searched: " << numberOfNodesVisited << ". Branching factor: " << 1.0 * numberOfNodesVisited / oldNumberOfNodesVisited << ".\n";
+            std::cout << "Depth " << depth << " reached in " << duration << "ms. Nodes searched: " <<
+                numberOfNodesVisited << ". Branching factor: " << 1.0 * numberOfNodesVisited / oldNumberOfNodesVisited << " |" <<
+                " Move: " << result.move.toString() << ", Evaluation: " << result.score << "\n";
             oldNumberOfNodesVisited = numberOfNodesVisited;
         }
 

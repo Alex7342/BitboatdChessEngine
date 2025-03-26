@@ -13,6 +13,9 @@
 constexpr int MAX_DEPTH = 64;
 constexpr int MAX_SEE_DEPTH = 16;
 
+constexpr int NULL_MOVE_DEPTH_THRESHOLD = 4;
+constexpr int NULL_MOVE_DEPTH_REDUCTION = 2;
+
 class ChessEngine {
 public:
 	enum PieceType {
@@ -170,6 +173,7 @@ private:
 	int numberOfNodesVisited;
 	SearchResult minimax(int alpha, int beta, const int depth, const int ply); // Minimax algorithm with alpha beta pruning
 	int currentPly; // The ply the search is currently at
+	bool isAtRoot; // True if the search is at root level, false otherwise
 };
 
 constexpr int CHECKMATE_SCORE[2] = { SHRT_MIN, SHRT_MAX };
