@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <stdexcept>
 
 class Move {
 private:
@@ -22,7 +23,7 @@ public:
         QUEEN = 3
     };
 
-    // Default constructor
+    // Null move constructor
     Move();
 
     // Constructor
@@ -33,6 +34,9 @@ public:
             ((promoPiece & 0x3) << 14);      // 2 bits for promotion piece
     }
 
+    // UCI Constructor
+    Move(const std::string moveString);
+
     // The position from which the piece moves
     inline int from() const { return moveData & 0x3F; }
     // The position the piece moves to
@@ -41,11 +45,17 @@ public:
     inline MoveType moveType() const { return static_cast<MoveType>((moveData >> 12) & 0x3); }
     // The type of piece to promote to (in case of pawn promotion)
     inline PromotionPiece promotionPiece() const { return static_cast<PromotionPiece>((moveData >> 14) & 0x3); }
+    
+    // Check if the move is null
+    inline bool isNull() const { return moveData == 0; }
 
     // Get raw move data
     inline uint16_t raw() const { return moveData; }
 
     std::string toString() const;
+
+    bool operator == (const Move& other) const;
+    bool operator != (const Move& other) const;
 };
 
 struct MoveList
