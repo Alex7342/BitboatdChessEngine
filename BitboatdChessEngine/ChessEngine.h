@@ -69,17 +69,16 @@ public:
 	void undoMove(); // Undo the last move
 
 	unsigned long long perft(const int depth); // Perft of a given depth
-
-	SearchResult search(const int depth); // Search for the best move of the active player by going to the given depth in the game tree
-	SearchResult iterativeDeepeningSearch(const int timeLimit); // Ssearch for the best move of the active player within the time limit (in milliseconds)
-	std::chrono::steady_clock::time_point searchStartTime; // The time the search started
-	int timeLimitInMilliseconds; // The time allocated to the search in milliseconds
-	bool stopSearch; // Flag set to true when the time limit is exceeded
+	SearchResult getBestMove(); // Get the best move in the current position
 
 	uint64_t getZobristHash() const; // Get the zobrist hash for the current state of the board
 
 private:
 	Color activePlayer; // The currently active player
+
+	int timeRemaining[2]; // Time remaining in milliseconds for each player
+	int timeIncrement[2]; // Time increment in millisecond after each move for each player
+	void initializeTimeLimits(); // Initialize the remaining time and the time increment arrays
 
 	PieceType squarePieceType[64]; // Array that stores the piece type of each square
 
@@ -170,10 +169,17 @@ private:
 
 	int evaluate() const; // Compute an evaluation of the current state of the board. Positive values favour white, negative values favour black.
 	
-	int numberOfNodesVisited;
-	SearchResult minimax(int alpha, int beta, const int depth, const int ply); // Minimax algorithm with alpha beta pruning
 	int currentPly; // The ply the search is currently at
 	bool isAtRoot; // True if the search is at root level, false otherwise
+	int numberOfNodesVisited;
+	SearchResult minimax(int alpha, int beta, const int depth, const int ply); // Minimax algorithm with alpha beta pruning
+	int getTimeForSearch() const;
+
+	SearchResult search(const int depth); // Search for the best move of the active player by going to the given depth in the game tree
+	SearchResult iterativeDeepeningSearch(const int timeLimit); // Ssearch for the best move of the active player within the time limit (in milliseconds)
+	std::chrono::steady_clock::time_point searchStartTime; // The time the search started
+	int timeLimitInMilliseconds; // The time allocated to the search in milliseconds
+	bool stopSearch; // Flag set to true when the time limit is exceeded
 };
 
 constexpr int CHECKMATE_SCORE[2] = { SHRT_MIN, SHRT_MAX };

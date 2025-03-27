@@ -8,6 +8,7 @@ ChessEngine::ChessEngine() {
     initializePositionSpecialStatistics();
     initializeZobristHash();
     initializeMoveOrderingTables();
+    initializeTimeLimits();
     this->transpositionTable = new TranspositionTableEntry[this->transpositionTableSize];
     this->activePlayer = Color::WHITE;
 }
@@ -28,7 +29,8 @@ void ChessEngine::loadFENPosition(const std::string position)
 
     int square = 56;
 
-    for (int i = 0; i < position.size(); i++)
+    int i = 0;
+    for (i = 0; i < position.size() && position[i] != ' '; i++)
     {
         if ('a' <= position[i] && position[i] <= 'z')
         {
@@ -113,8 +115,105 @@ void ChessEngine::loadFENPosition(const std::string position)
         }
     }
 
+    // Skip all spaces
+    while (i < position.size() && position[i] == ' ')
+        i++;
+
+    // Get the active player
+    if (i < position.size())
+    {
+        if (position[i] == 'w')
+            this->activePlayer = Color::WHITE;
+        else if (position[i] == 'b')
+            this->activePlayer = Color::BLACK;
+        
+        i++;
+    }
+
+    // Skip all spaces
+    while (i < position.size() && position[i] == ' ')
+        i++;
+
+    // Get castling rights
+    if (i < position.size())
+    {
+        if (position[i] == '-')
+        {
+            this->castlingRights = 0;
+            i++;
+        }
+        else
+        {
+            this->castlingRights = 0;
+            while (i < position.size() && position[i] != ' ')
+            {
+                switch (position[i])
+                {
+                case 'K':
+                    this->castlingRights |= this->whiteCastleKingSide;
+                    break;
+                case 'Q':
+                    this->castlingRights |= this->whiteCastleQueenSide;
+                    break;
+                case 'k':
+                    this->castlingRights |= this->blackCastleKingSide;
+                    break;
+                case 'q':
+                    this->castlingRights |= this->blackCastleQueenSide;
+                    break;
+                }
+                i++;
+            }
+        }
+    }
+
+    // Skip all spaces
+    while (i < position.size() && position[i] == ' ')
+        i++;
+
+    // Get the en passant target square
+    if (i < position.size())
+    {
+        if (position[i] == '-')
+        {
+            this->enPassantTargetBitboard = 0ULL;
+            i++;
+        }
+        else
+        {
+            // Get the file
+            int file = position[i] - 'a';
+
+            // Get the rank
+            int rank = 0;
+            i++;
+            if (i < position.size())
+                rank = position[i] - '1';
+
+            int square = 8 * rank + file; // Get the square;
+            this->enPassantTargetBitboard = 1ULL << square; // Update the en passant target square
+
+            i++;
+        }
+    }
+
+    // TODO Handle half and full moves
+
     initializeSquarePieceTypeArray();
-    initializeMoveOrderingTables();
+
+    // Change the zobrist hash
+    this->boardZobristHash = 0ULL;
+
+    // Add pieces
+    for (int square = 0; square < 64; square++)
+        this->boardZobristHash ^= this->pieceZobristHash[squarePieceType[square]][square];
+
+    // Add castling rights
+    this->boardZobristHash ^= this->castlingRightsZobristHash[this->castlingRights];
+
+    // Add en passant square
+    if (this->enPassantTargetBitboard)
+        this->boardZobristHash ^= this->enPassantTargetSquareZobristHash[_tzcnt_u64(this->enPassantTargetBitboard)];
 }
 
 uint64_t ChessEngine::getAllPieces() const
@@ -1403,6 +1502,16 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
     }
 }
 
+int ChessEngine::getTimeForSearch() const
+{
+    int timeForSearch = this->timeRemaining[this->activePlayer] / 40 + this->timeIncrement[this->activePlayer] / 2;
+
+    if (timeForSearch > this->timeRemaining[this->activePlayer])
+        return timeForSearch - this->timeRemaining[this->activePlayer];
+
+    return timeForSearch;
+}
+
 std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
     std::string board = "";
     for (int rank = 7; rank >= 0; --rank) {
@@ -2102,6 +2211,11 @@ unsigned long long ChessEngine::perft(const int depth)
     return result;
 }
 
+ChessEngine::SearchResult ChessEngine::getBestMove()
+{
+    return this->iterativeDeepeningSearch(this->getTimeForSearch());
+}
+
 ChessEngine::SearchResult ChessEngine::search(const int depth)
 {
     //return negamax(INT_MIN, INT_MAX, depth, colorToMove);
@@ -2143,10 +2257,18 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
             bestMove = result;
     }
 
+    this->timeRemaining[this->activePlayer] -= timeLimit;
+
     return bestMove;
 }
 
 uint64_t ChessEngine::getZobristHash() const
 {
     return this->boardZobristHash;
+}
+
+void ChessEngine::initializeTimeLimits()
+{
+    this->timeRemaining[WHITE] = this->timeRemaining[BLACK] = 60000 * 10;
+    this->timeIncrement[WHITE] = this->timeIncrement[BLACK] = 100;
 }
