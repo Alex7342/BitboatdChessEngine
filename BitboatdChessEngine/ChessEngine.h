@@ -71,6 +71,15 @@ public:
 	unsigned long long perft(const int depth); // Perft of a given depth
 	SearchResult getBestMove(); // Get the best move in the current position
 
+	void stopCurrentSearch(); // Stop the current search
+	void clearTranspositionTable(); // Clear the transposition table
+	void clearMoveOrderingTables(); // Clear move ordering tables
+
+	void setWhiteTime(const int timeInMilliseconds); // Set the remaining time of white (in milliseconds)
+	void setBlackTime(const int timeInMilliseconds); // Set the remaining time of black (in milliseconds)
+	void setWhiteIncrement(const int incrementInMilliseconds); // Set the increment per move of white
+	void setBlackIncrement(const int incrementInMilliseconds); // Set the increment per move of black
+
 	uint64_t getZobristHash() const; // Get the zobrist hash for the current state of the board
 
 private:

@@ -2216,6 +2216,46 @@ ChessEngine::SearchResult ChessEngine::getBestMove()
     return this->iterativeDeepeningSearch(this->getTimeForSearch());
 }
 
+void ChessEngine::stopCurrentSearch()
+{
+    this->stopSearch = true;
+}
+
+void ChessEngine::clearTranspositionTable()
+{
+    for (int i = 0; i < this->transpositionTableSize; i++)
+        transpositionTable[i] = TranspositionTableEntry();
+}
+
+void ChessEngine::clearMoveOrderingTables()
+{
+    this->maxHistoryValueReached = false;
+    for (int color = 0; color < 2; color++)
+        for (int from = 0; from < 64; from++)
+            for (int to = 0; to < 64; to++)
+                this->historyTable[color][from][to] = 0;
+}
+
+void ChessEngine::setWhiteTime(const int timeInMilliseconds)
+{
+    this->timeRemaining[WHITE] = timeInMilliseconds;
+}
+
+void ChessEngine::setBlackTime(const int timeInMilliseconds)
+{
+    this->timeRemaining[BLACK] = timeInMilliseconds;
+}
+
+void ChessEngine::setWhiteIncrement(const int incrementInMilliseconds)
+{
+    this->timeIncrement[WHITE] = incrementInMilliseconds;
+}
+
+void ChessEngine::setBlackIncrement(const int incrementInMilliseconds)
+{
+    this->timeIncrement[BLACK] = incrementInMilliseconds;
+}
+
 ChessEngine::SearchResult ChessEngine::search(const int depth)
 {
     //return negamax(INT_MIN, INT_MAX, depth, colorToMove);
