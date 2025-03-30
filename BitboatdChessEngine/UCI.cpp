@@ -100,6 +100,40 @@ void UCI::handlePosition(const std::string& commandLine)
 	if (positionType == "startpos")
 	{
 		chessEngine.loadFENPosition(STARTING_POSITION);
+
+		// Get rid of spaces
+		while (i < commandLine.size() && commandLine[i] == ' ')
+			i++;
+
+		// Get position option
+		std::string positionOption;
+		while (i < commandLine.size() && 'a' <= commandLine[i] && commandLine[i] <= 'z')
+		{
+			positionOption += commandLine[i];
+			i++;
+		}
+
+		if (positionOption == "moves")
+		{
+			while (i < commandLine.size())
+			{
+				// Get rid of spaces
+				while (i < commandLine.size() && commandLine[i] == ' ')
+					i++;
+
+				// Get position option
+				std::string moveString;
+				while (i < commandLine.size() && (('a' <= commandLine[i] && commandLine[i] <= 'z') || ('0' <= commandLine[i] && commandLine[i] <= '9')))
+				{
+					moveString += commandLine[i];
+					i++;
+				}
+
+				if (!moveString.empty())
+					this->chessEngine.makeMove(this->chessEngine.getMoveFromString(moveString));
+			}
+		}
+
 		return;
 	}
 	else if (positionType == "fen")
@@ -109,6 +143,9 @@ void UCI::handlePosition(const std::string& commandLine)
 			i++;
 
 		chessEngine.loadFENPosition(commandLine.substr(i));
+
+		// TODO Read moves after FEN argument
+
 		return;
 	}
 }
