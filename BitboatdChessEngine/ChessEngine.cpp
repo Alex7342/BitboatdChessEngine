@@ -1535,6 +1535,69 @@ std::string ChessEngine::getSquareNotation(const int square) const
     return std::string(1, file) + std::to_string(rank);
 }
 
+Move ChessEngine::getMoveFromString(const std::string moveString) const
+{
+    // Check string size
+    if (moveString.size() < 4 || moveString.size() > 5)
+        throw std::invalid_argument("The given string does not resprect UCI rules (String too short or too long).");
+
+    // Check files
+    if (!('a' <= moveString[0] && moveString[0] <= 'h') || !('a' <= moveString[2] && moveString[2] <= 'h'))
+        throw std::invalid_argument("The given string does not resprect UCI rules (Files not represented correctly).");
+
+    // Check ranks
+    if (!('1' <= moveString[1] && moveString[1] <= '9') || !('1' <= moveString[3] && moveString[3] <= '9'))
+        throw std::invalid_argument("The given string does not resprect UCI rules (Ranks not represented correctly).");
+
+    // Check promotion type
+    if (moveString.size() == 5 && (moveString[4] != 'q' && moveString[4] != 'n' && moveString[4] != 'r' && moveString[4] != 'b'))
+        throw std::invalid_argument("The given string does not resprect UCI rules (Promotion type not represented correctly).");
+
+    int fromRank = moveString[1] - '1';
+    int fromFile = moveString[0] - 'a';
+    int fromSquare = 8 * fromRank + fromFile;
+
+    int toRank = moveString[3] - '1';
+    int toFile = moveString[2] - 'a';
+    int toSquare = 8 * toRank + toFile;
+
+    if (moveString.size() == 4) // Normal move
+    {
+        Move::MoveType movetype = Move::MoveType::NORMAL;
+
+        // Check if the move is a castle
+        if (this->squarePieceType[fromSquare] == PieceType::KING && this->squaresBetween[fromSquare][toSquare])
+            movetype = Move::MoveType::CASTLE;
+
+        // Check if the move is an en passant
+        if (this->squarePieceType[fromSquare] == PieceType::PAWN && ((1ULL << toSquare) & this->enPassantTargetBitboard) != 0ULL)
+            movetype = Move::MoveType::EN_PASSANT;
+
+        return Move(fromSquare, toSquare, movetype);
+    }
+    else if (moveString.size() == 5) // Promotion move
+    {
+        Move::PromotionPiece promotion = Move::PromotionPiece::QUEEN;
+        switch (moveString[4])
+        {
+        case 'q':
+            promotion = Move::PromotionPiece::QUEEN;
+            break;
+        case 'n':
+            promotion = Move::PromotionPiece::KNIGHT;
+            break;
+        case 'r':
+            promotion = Move::PromotionPiece::ROOK;
+            break;
+        case 'b':
+            promotion = Move::PromotionPiece::BISHOP;
+            break;
+        }
+
+        return Move(fromSquare, toSquare, Move::MoveType::PROMOTION, promotion);
+    }
+}
+
 MoveList ChessEngine::getPseudolegalMoves() const
 {
     MoveList moveList;
@@ -2284,14 +2347,14 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
         SearchResult result = this->minimax(INT_MIN, INT_MAX, depth, 1);
         auto stop = std::chrono::high_resolution_clock::now();
 
-        if (!this->stopSearch)
+        /*if (!this->stopSearch)
         {
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
             std::cout << "Depth " << depth << " reached in " << duration << "ms. Nodes searched: " <<
                 numberOfNodesVisited << ". Branching factor: " << 1.0 * numberOfNodesVisited / oldNumberOfNodesVisited << " |" <<
                 " Move: " << result.move.toString() << ", Evaluation: " << result.score << "\n";
             oldNumberOfNodesVisited = numberOfNodesVisited;
-        }
+        }*/
 
         if (!this->stopSearch)
             bestMove = result;

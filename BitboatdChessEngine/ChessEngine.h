@@ -62,6 +62,7 @@ public:
 	std::string bitboardToString(const uint64_t bitboard) const; // Get a string representation of a bitboard
 	std::string getSquareNotation(const int square) const; // Get the notation of a square (notation of square 0 is A1)
 
+	Move getMoveFromString(const std::string moveString) const;
 	MoveList getPseudolegalMoves() const; // Get the pseudolegal moves of the active player
 	MoveList getLegalMoves(); // Get the legal moves of the active player
 
