@@ -13,13 +13,14 @@ public:
 	UndoHelper();
 
 	// Constructor
-	UndoHelper(const int from, const int to, const uint8_t castlingRights, const uint64_t enPassantTargetBitboard, const Move::MoveType moveType = Move::MoveType::NORMAL, const int capturedPieceType = 6)
+	UndoHelper(const int from, const int to, const uint8_t castlingRights, const uint64_t enPassantTargetBitboard, const int halfmoveClock, const Move::MoveType moveType = Move::MoveType::NORMAL, const int capturedPieceType = 6)
 	{
 		undoData = (from & 0x3F) |				// 6 bits for 'from' square
 			((to & 0x3F) << 6) |				// 6 bits for 'to' square
 			((castlingRights & 0xF) << 12) |	// 4 bits for castlingRights
 			((moveType & 0x3) << 16) |          // 2 bits for special move type
-			((capturedPieceType & 0x7) << 18);  // 3 bits for captured piece type
+			((capturedPieceType & 0x7) << 18) | // 3 bits for captured piece type
+			((halfmoveClock & 0x7F) << 21);
 
 		this->enPassantTargetBitboard = enPassantTargetBitboard;
 	}
@@ -36,4 +37,6 @@ public:
 	inline Move::MoveType moveType() const { return static_cast<Move::MoveType>((undoData >> 16) & 0x3); }
 	// The type of the captured piece
 	inline int capturedPieceType() const { return (undoData >> 18) & 0x7; }
+	// The halfmove clock
+	inline int halfmoveClock() const { return (undoData >> 21) & 0x7F; }
 };
