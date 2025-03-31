@@ -85,6 +85,8 @@ public:
 
 private:
 	Color activePlayer; // The currently active player
+	int halfmoveClock; // The halfmove clock
+	int fullmoveCounter; // The fullmove counter
 
 	int timeRemaining[2]; // Time remaining in milliseconds for each player
 	int timeIncrement[2]; // Time increment in millisecond after each move for each player

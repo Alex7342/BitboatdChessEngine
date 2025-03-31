@@ -197,7 +197,31 @@ void ChessEngine::loadFENPosition(const std::string position)
         }
     }
 
-    // TODO Handle half and full moves
+    // Skip all spaces
+    while (i < position.size() && position[i] == ' ')
+        i++;
+
+    // Get the halfmove clock
+    int halfmoves = 0;
+    while (i < position.size() && '0' <= position[i] && position[i] <= '9')
+    {
+        halfmoves = halfmoves * 10 + position[i] - '0';
+        i++;
+    }
+    this->halfmoveClock = halfmoves;
+
+    // Skip all spaces
+    while (i < position.size() && position[i] == ' ')
+        i++;
+
+    // Get the halfmove clock
+    int fullmoves = 0;
+    while (i < position.size() && '0' <= position[i] && position[i] <= '9')
+    {
+        fullmoves = fullmoves * 10 + position[i] - '0';
+        i++;
+    }
+    this->fullmoveCounter = fullmoves;
 
     initializeSquarePieceTypeArray();
 
@@ -269,7 +293,9 @@ void ChessEngine::initializePositionSpecialStatistics()
     // Initialize en passant target squares
     enPassantTargetBitboard = 0ULL;
 
-    // TODO Initialize 50 move rule, etc
+    // Initialize halfmove and full move counters
+    halfmoveClock = 0;
+    fullmoveCounter = 0;
 }
 
 void ChessEngine::initializeZobristHash()
@@ -1290,6 +1316,10 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
         return SearchResult();
     }
 
+    // 50 moves rule
+    if (!this->isAtRoot && this->halfmoveClock >= 50)
+        return SearchResult(0);
+
     const Color colorToMove = this->activePlayer;
 
     // Check the transposition table entry
@@ -1631,9 +1661,16 @@ MoveList ChessEngine::getLegalMoves()
 
 void ChessEngine::makeMove(const Move move)
 {
+    // Update the fullmove counter
+    if (this->activePlayer == Color::BLACK)
+        this->fullmoveCounter++;
+
     if (move.isNull()) // Make a null move
     {
-        undoStack.push(UndoHelper(0, 0, castlingRights, enPassantTargetBitboard));
+        undoStack.push(UndoHelper(0, 0, castlingRights, enPassantTargetBitboard, halfmoveClock));
+
+        // Update the halfmove clock
+        this->halfmoveClock++;
         
         // Update zobrist hash for en passant target square
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
@@ -1672,12 +1709,15 @@ void ChessEngine::makeMove(const Move move)
         PieceType capturedPieceType = squarePieceType[toSquare];
         
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, capturedPieceType));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, halfmoveClock, moveType, capturedPieceType));
 
         // Update zobrist hash for en passant target square
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
+
+        // Update the halfmove clock
+        halfmoveClock++;
 
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE)
@@ -1714,6 +1754,9 @@ void ChessEngine::makeMove(const Move move)
                     break;
                 }
             }
+
+            // Reset the halfmove clock on a capture
+            this->halfmoveClock = 0;
         }
 
         // Update the array that stores piece types for each square
@@ -1763,11 +1806,17 @@ void ChessEngine::makeMove(const Move move)
             }
         }
         // Update en passant square if a pawn makes a double push
-        else if (movingPieceType == PAWN && squaresBetween[fromSquare][toSquare])
+        else if (movingPieceType == PAWN)
         {
-            if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
-            enPassantTargetBitboard = squaresBetween[fromSquare][toSquare];
-            if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+            if (squaresBetween[fromSquare][toSquare])
+            {
+                if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+                enPassantTargetBitboard = squaresBetween[fromSquare][toSquare];
+                if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+            }
+
+            // Reset the halfmove clock on a pawn move
+            this->halfmoveClock = 0;
         }
 
         // Change the active player
@@ -1795,12 +1844,15 @@ void ChessEngine::makeMove(const Move move)
         PieceType capturedPieceType = squarePieceType[toSquare];
 
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, capturedPieceType));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, halfmoveClock, moveType, capturedPieceType));
 
         // Update zobrist hash for en passant target square
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
+
+        // Reset the halfmove clock on a pawn promotion
+        halfmoveClock = 0;
 
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE)
@@ -1853,12 +1905,15 @@ void ChessEngine::makeMove(const Move move)
     if (moveType == Move::MoveType::CASTLE)
     {
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, PieceType::NONE));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, halfmoveClock, moveType, PieceType::NONE));
 
         // Update zobrist hash for en passant target square
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
+
+        // Update the halfmove clock
+        halfmoveClock++;
 
         uint8_t rookToSquare = 0, rookFromSquare = 0;
         uint64_t rookToSquareMask = 0, rookFromSquareMask = 0;
@@ -1942,12 +1997,15 @@ void ChessEngine::makeMove(const Move move)
         boardZobristHash ^= pieceZobristHash[PAWN][toSquare];
 
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, PieceType::PAWN));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, halfmoveClock, moveType, PieceType::PAWN));
 
         // Update zobrist hash for en passant target square
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
+
+        // Reset the halfmove clock on an en passant move
+        halfmoveClock = 0;
 
         // Compute the captured pawn coordinates
         int capturedPawnSquare = 0;
@@ -1989,6 +2047,10 @@ void ChessEngine::undoMove()
     // Get the color of the player that made the last move
     const Color colorThatMoved = static_cast<Color>(this->activePlayer ^ 1);
 
+    // Update the fullmove counter
+    if (colorThatMoved == Color::BLACK)
+        this->fullmoveCounter--;
+
     // Get last move information
     UndoHelper undoHelper = undoStack.top();
     undoStack.pop();
@@ -2003,6 +2065,9 @@ void ChessEngine::undoMove()
     if (toSquare == 0 && fromSquare == 0) // Null move
     {
         // Castling rights are not affected by null moves
+
+        // Restore the previous halfmove clock
+        this->halfmoveClock = undoHelper.halfmoveClock();
 
         // Restore the previous en passant target bitboard
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
@@ -2057,6 +2122,9 @@ void ChessEngine::undoMove()
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
+        // Restore the previous halfmove clock
+        this->halfmoveClock = undoHelper.halfmoveClock();
+
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
@@ -2104,6 +2172,9 @@ void ChessEngine::undoMove()
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+
+        // Restore the previous halfmove clock
+        this->halfmoveClock = undoHelper.halfmoveClock();
 
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
@@ -2175,6 +2246,9 @@ void ChessEngine::undoMove()
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
+        // Restore the previous halfmove clock
+        this->halfmoveClock = undoHelper.halfmoveClock();
+
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
@@ -2229,6 +2303,9 @@ void ChessEngine::undoMove()
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+
+        // Restore the previous halfmove clock
+        this->halfmoveClock = undoHelper.halfmoveClock();
 
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
