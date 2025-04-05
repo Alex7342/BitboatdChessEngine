@@ -87,6 +87,9 @@ private:
 	Color activePlayer; // The currently active player
 	int halfmoveClock; // The halfmove clock
 	int fullmoveCounter; // The fullmove counter
+	
+	int previousPositionsSize;
+	uint64_t* previousPositions; // Zobrist hashes for previous positions
 
 	int timeRemaining[2]; // Time remaining in milliseconds for each player
 	int timeIncrement[2]; // Time increment in millisecond after each move for each player
@@ -109,11 +112,11 @@ private:
 	uint64_t kingMovement[64]; // Bitboards for king movement
 
 	uint64_t rookOccupancyMask[64]; // Bitboards for rook occupancy masks
-	uint64_t rookMovement[102400]; // Bitboards for rook movement
+	uint64_t* rookMovement; // Bitboards for rook movement
 	int rookSquareOffset[64]; // Offset for each square in the rook movement array
 
 	uint64_t bishopOccupancyMask[64]; // Bitboards for bishop occupancy masks
-	uint64_t bishopMovement[5248]; // Bitboards for bishop movement
+	uint64_t* bishopMovement; // Bitboards for bishop movement
 	int bishopSquareOffset[64]; // Offset for each square in the bishop movement array
 
 	PieceType promotionPieceToPieceType[4]; // Get the corresponding piece type from an encoded promotion piece

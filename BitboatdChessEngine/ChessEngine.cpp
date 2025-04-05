@@ -9,13 +9,20 @@ ChessEngine::ChessEngine() {
     initializeZobristHash();
     initializeMoveOrderingTables();
     initializeTimeLimits();
+
     this->transpositionTable = new TranspositionTableEntry[this->transpositionTableSize];
     this->activePlayer = Color::WHITE;
+
+    this->previousPositionsSize = 0;
+    this->previousPositions = new uint64_t[18000];
 }
 
 ChessEngine::~ChessEngine()
 {
     delete[] transpositionTable;
+    delete[] rookMovement;
+    delete[] bishopMovement;
+    delete[] previousPositions;
 }
 
 void ChessEngine::loadFENPosition(const std::string position)
@@ -26,6 +33,8 @@ void ChessEngine::loadFENPosition(const std::string position)
         for (int type = 0; type < 6; type++)
             pieces[color][type] = 0ULL;
     }
+
+    this->previousPositionsSize = 0;
 
     int square = 56;
 
@@ -512,6 +521,7 @@ void ChessEngine::initializeRookOccupancyMasks()
 
 void ChessEngine::initializeRookMovesetBitboards()
 {
+    this->rookMovement = new uint64_t[102400];
     int rookMovementIndex = 0;
 
     for (int square = 0; square < 64; square++)
@@ -541,6 +551,7 @@ void ChessEngine::initializeBishopOccupancyMasks()
 
 void ChessEngine::initializeBishopMovesetBitboards()
 {
+    this->bishopMovement = new uint64_t[5248];
     int bishopMovementIndex = 0;
 
     for (int square = 0; square < 64; square++)
@@ -1320,6 +1331,19 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
     if (!this->isAtRoot && this->halfmoveClock >= 50)
         return SearchResult(0);
 
+    // Threefold repetition rule
+    if (!this->isAtRoot && this->halfmoveClock >= 8)
+    {
+        int repetitions = 0;
+        for (int start = std::max(0, this->previousPositionsSize - 1 - this->halfmoveClock), i = this->previousPositionsSize - 3; i >= start; i -= 2)
+            if (this->previousPositions[i] == this->boardZobristHash)
+            {
+                repetitions++;
+                if (repetitions == 2)
+                    return SearchResult(0);
+            }
+    }
+
     const Color colorToMove = this->activePlayer;
 
     // Check the transposition table entry
@@ -1681,6 +1705,10 @@ void ChessEngine::makeMove(const Move move)
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
 
+        // Store the zobrist hash of the position in the previous positions array
+        this->previousPositions[this->previousPositionsSize] = this->boardZobristHash;
+        this->previousPositionsSize++;
+
         return;
     }
 
@@ -1823,6 +1851,10 @@ void ChessEngine::makeMove(const Move move)
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
 
+        // Store the zobrist hash of the position in the previous positions array
+        this->previousPositions[this->previousPositionsSize] = this->boardZobristHash;
+        this->previousPositionsSize++;
+
         return;
     }
 
@@ -1898,6 +1930,10 @@ void ChessEngine::makeMove(const Move move)
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
+
+        // Store the zobrist hash of the position in the previous positions array
+        this->previousPositions[this->previousPositionsSize] = this->boardZobristHash;
+        this->previousPositionsSize++;
 
         return;
     }
@@ -1982,6 +2018,10 @@ void ChessEngine::makeMove(const Move move)
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
 
+        // Store the zobrist hash of the position in the previous positions array
+        this->previousPositions[this->previousPositionsSize] = this->boardZobristHash;
+        this->previousPositionsSize++;
+
         return;
     }
 
@@ -2038,6 +2078,10 @@ void ChessEngine::makeMove(const Move move)
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
 
+        // Store the zobrist hash of the position in the previous positions array
+        this->previousPositions[this->previousPositionsSize] = this->boardZobristHash;
+        this->previousPositionsSize++;
+
         return;
     }
 }
@@ -2046,6 +2090,9 @@ void ChessEngine::undoMove()
 {
     // Get the color of the player that made the last move
     const Color colorThatMoved = static_cast<Color>(this->activePlayer ^ 1);
+
+    // Remove the current zobrist hash from the previous positions array
+    this->previousPositionsSize--;
 
     // Update the fullmove counter
     if (colorThatMoved == Color::BLACK)
