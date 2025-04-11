@@ -1454,9 +1454,12 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                         // Store the result in the transposition table
                         transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
 
-                        // Update the history table for non capture moves
+                        // Update the killer and history tables for non capture moves
                         if (squarePieceType[moves.moves[i].to()] == PieceType::NONE)
+                        {
+                            //updateKillerMoves(moves.moves[i], ply);
                             updateHistoryTable(colorToMove, moves.moves[i], depth);
+                        }
                     }
 
                     return result;
@@ -1520,9 +1523,12 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                         // Store the result in the transposition table
                         transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
 
-                        // Update the history table for non capture moves
+                        // Update the killer and history tables for non capture moves
                         if (squarePieceType[moves.moves[i].to()] == PieceType::NONE)
+                        {
+                            //updateKillerMoves(moves.moves[i], ply);
                             updateHistoryTable(colorToMove, moves.moves[i], depth);
+                        }
                     }
 
                     return result;
