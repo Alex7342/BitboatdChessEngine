@@ -2480,14 +2480,25 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
         /*if (!this->stopSearch)
         {
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+            auto searchTimeLeft = timeLimit - std::chrono::duration_cast<std::chrono::milliseconds>(stop - this->searchStartTime).count();
+
             std::cout << "Depth " << depth << " reached in " << duration << "ms. Nodes searched: " <<
                 numberOfNodesVisited << ". Branching factor: " << 1.0 * numberOfNodesVisited / oldNumberOfNodesVisited << " |" <<
-                " Move: " << result.move.toString() << ", Evaluation: " << result.score << "\n";
+                " Move: " << result.move.toString() << ", Evaluation: " << result.score << ", Time left: " << searchTimeLeft << "\n";
+
             oldNumberOfNodesVisited = numberOfNodesVisited;
         }*/
 
         if (!this->stopSearch)
             bestMove = result;
+
+        auto searchDuration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+        auto searchTimeLeft = timeLimit - std::chrono::duration_cast<std::chrono::milliseconds>(stop - this->searchStartTime).count();
+        if (searchTimeLeft < searchDuration * 2)
+        {
+            this->timeRemaining[this->activePlayer] -= (timeLimit - searchTimeLeft);
+            return bestMove;
+        }
     }
 
     this->timeRemaining[this->activePlayer] -= timeLimit;
