@@ -377,16 +377,17 @@ void ChessEngine::updateHistoryTable(const Color color, const Move move, const i
 
 void ChessEngine::updateKillerMoves(const Move move, const int ply)
 {
-    if (move == this->killerMoves[ply][1])
-    {
-        this->killerMoves[ply][0] = move;
+    if (move == this->killerMoves[ply][0] || move == this->killerMoves[ply][1])
         return;
-    }
 
-    if (move != this->killerMoves[ply][0])
+    if (move != this->killerMoves[ply][0]) // Replace the first move in the table
     {
         this->killerMoves[ply][1] = this->killerMoves[ply][0];
         this->killerMoves[ply][0] = move;
+    }
+    else // Replace the second move in the table
+    {
+        this->killerMoves[ply][1] = move;
     }
 }
 
@@ -1239,14 +1240,14 @@ bool ChessEngine::compareMoves(const Move firstMove, const Move secondMove) cons
     else
     {
         // Use killer move heuristic
-        /*bool isFirstMoveKiller = (firstMove == killerMoves[currentPly][0] || firstMove == killerMoves[currentPly][1]);
+        bool isFirstMoveKiller = (firstMove == killerMoves[currentPly][0] || firstMove == killerMoves[currentPly][1]);
         bool isSecondMoveKiller = (secondMove == killerMoves[currentPly][0] || secondMove == killerMoves[currentPly][1]);
         if (isFirstMoveKiller && isSecondMoveKiller)
             return historyTable[activePlayer][firstMove.from()][firstMove.to()] > historyTable[activePlayer][secondMove.from()][secondMove.to()];
         if (isFirstMoveKiller)
             return true;
         if (isSecondMoveKiller)
-            return false;*/
+            return false;
 
         // Use history heuristic
         return historyTable[activePlayer][firstMove.from()][firstMove.to()] > historyTable[activePlayer][secondMove.from()][secondMove.to()];
@@ -1457,7 +1458,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                         // Update the killer and history tables for non capture moves
                         if (squarePieceType[moves.moves[i].to()] == PieceType::NONE)
                         {
-                            //updateKillerMoves(moves.moves[i], ply);
+                            updateKillerMoves(moves.moves[i], ply);
                             updateHistoryTable(colorToMove, moves.moves[i], depth);
                         }
                     }
@@ -1526,7 +1527,7 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                         // Update the killer and history tables for non capture moves
                         if (squarePieceType[moves.moves[i].to()] == PieceType::NONE)
                         {
-                            //updateKillerMoves(moves.moves[i], ply);
+                            updateKillerMoves(moves.moves[i], ply);
                             updateHistoryTable(colorToMove, moves.moves[i], depth);
                         }
                     }
