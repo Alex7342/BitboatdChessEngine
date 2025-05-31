@@ -59,7 +59,10 @@ void UCI::handleGo(const std::string& commandLine)
 			this->chessEngine.setBlackIncrement(value);
 	}
 
-	std::cout << "bestmove " << this->chessEngine.getBestMove().move.toString() << "\n";
+	ChessEngine::SearchResult result = this->chessEngine.getBestMove();
+	std::cout << "info" << " depth " << this->chessEngine.getDepthReached() << " score cp " << result.score
+		<< " time " << this->chessEngine.getTimeUsed() << " nodes " << this->chessEngine.getNumberOfNodesVisited() << "\n";
+	std::cout << "bestmove " << result.move.toString() << "\n";
 }
 
 void UCI::handleUci() const

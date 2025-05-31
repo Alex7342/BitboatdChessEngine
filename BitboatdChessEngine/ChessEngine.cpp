@@ -2491,7 +2491,10 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
         }*/
 
         if (!this->stopSearch)
+        {
             bestMove = result;
+            this->depthReached = depth;
+        }
 
         auto searchDuration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
         auto searchTimeLeft = timeLimit - std::chrono::duration_cast<std::chrono::milliseconds>(stop - this->searchStartTime).count();
@@ -2505,6 +2508,21 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
     this->timeRemaining[this->activePlayer] -= timeLimit;
 
     return bestMove;
+}
+
+int ChessEngine::getNumberOfNodesVisited() const
+{
+    return this->numberOfNodesVisited;
+}
+
+int ChessEngine::getDepthReached() const
+{
+    return this->depthReached;
+}
+
+int ChessEngine::getTimeUsed() const
+{
+    return this->timeLimitInMilliseconds;
 }
 
 uint64_t ChessEngine::getZobristHash() const

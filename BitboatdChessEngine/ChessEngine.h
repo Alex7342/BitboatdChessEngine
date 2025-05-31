@@ -72,6 +72,10 @@ public:
 	unsigned long long perft(const int depth); // Perft of a given depth
 	SearchResult getBestMove(); // Get the best move in the current position
 
+	int getNumberOfNodesVisited() const; // Get the number of nodes visited by the last search
+	int getDepthReached() const; // Get the depth reached by the last search
+	int getTimeUsed() const; // Get the time used for the last search
+
 	void stopCurrentSearch(); // Stop the current search
 	void clearTranspositionTable(); // Clear the transposition table
 	void clearMoveOrderingTables(); // Clear move ordering tables
@@ -186,7 +190,8 @@ private:
 	
 	int currentPly; // The ply the search is currently at
 	bool isAtRoot; // True if the search is at root level, false otherwise
-	int numberOfNodesVisited;
+	int numberOfNodesVisited; // Number of nodes visited by the last search
+	int depthReached; // Depth reached by the last search
 	SearchResult minimax(int alpha, int beta, const int depth, const int ply); // Minimax algorithm with alpha beta pruning
 	int getTimeForSearch() const;
 
