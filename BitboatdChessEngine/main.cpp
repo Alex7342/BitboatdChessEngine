@@ -1,7 +1,13 @@
 #include <iostream>
-
+#include "UCI.h"
 
 int main()
 {
-    std::cout << "Hello World!\n";
+    try {
+        UCI uci;
+        uci.run();
+    }
+    catch (std::exception e) {
+        std::cout << e.what() << "\n";
+    }
 }
