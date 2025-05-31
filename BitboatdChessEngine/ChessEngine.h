@@ -139,7 +139,7 @@ private:
 	void decayHistoryTable(); // Scale down the values in the history heuristic (used to avoid overflow)
 	void updateHistoryTable(const Color color, const Move move, const int depth); // Update the history table for the given color, move and depth
 
-	Move killerMoves[MAX_DEPTH][2]; // Table that stores killer moves by ply
+	Move killerMoves[MAX_DEPTH + 1][2]; // Table that stores killer moves by ply
 	void updateKillerMoves(const Move move, const int ply); // Update the killer moves table
 	void clearKillerMoves(); // Clear the killer moves table
 
