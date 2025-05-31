@@ -62,6 +62,7 @@ public:
 	std::string bitboardToString(const uint64_t bitboard) const; // Get a string representation of a bitboard
 	std::string getSquareNotation(const int square) const; // Get the notation of a square (notation of square 0 is A1)
 
+	Move getMoveFromString(const std::string moveString) const;
 	MoveList getPseudolegalMoves() const; // Get the pseudolegal moves of the active player
 	MoveList getLegalMoves(); // Get the legal moves of the active player
 
@@ -69,17 +70,34 @@ public:
 	void undoMove(); // Undo the last move
 
 	unsigned long long perft(const int depth); // Perft of a given depth
+	SearchResult getBestMove(); // Get the best move in the current position
 
-	SearchResult search(const int depth); // Search for the best move of the active player by going to the given depth in the game tree
-	SearchResult iterativeDeepeningSearch(const int timeLimit); // Ssearch for the best move of the active player within the time limit (in milliseconds)
-	std::chrono::steady_clock::time_point searchStartTime; // The time the search started
-	int timeLimitInMilliseconds; // The time allocated to the search in milliseconds
-	bool stopSearch; // Flag set to true when the time limit is exceeded
+	int getNumberOfNodesVisited() const; // Get the number of nodes visited by the last search
+	int getDepthReached() const; // Get the depth reached by the last search
+	int getTimeUsed() const; // Get the time used for the last search
+
+	void stopCurrentSearch(); // Stop the current search
+	void clearTranspositionTable(); // Clear the transposition table
+	void clearMoveOrderingTables(); // Clear move ordering tables
+
+	void setWhiteTime(const int timeInMilliseconds); // Set the remaining time of white (in milliseconds)
+	void setBlackTime(const int timeInMilliseconds); // Set the remaining time of black (in milliseconds)
+	void setWhiteIncrement(const int incrementInMilliseconds); // Set the increment per move of white
+	void setBlackIncrement(const int incrementInMilliseconds); // Set the increment per move of black
 
 	uint64_t getZobristHash() const; // Get the zobrist hash for the current state of the board
 
 private:
 	Color activePlayer; // The currently active player
+	int halfmoveClock; // The halfmove clock
+	int fullmoveCounter; // The fullmove counter
+	
+	int previousPositionsSize;
+	uint64_t* previousPositions; // Zobrist hashes for previous positions
+
+	int timeRemaining[2]; // Time remaining in milliseconds for each player
+	int timeIncrement[2]; // Time increment in millisecond after each move for each player
+	void initializeTimeLimits(); // Initialize the remaining time and the time increment arrays
 
 	PieceType squarePieceType[64]; // Array that stores the piece type of each square
 
@@ -98,11 +116,11 @@ private:
 	uint64_t kingMovement[64]; // Bitboards for king movement
 
 	uint64_t rookOccupancyMask[64]; // Bitboards for rook occupancy masks
-	uint64_t rookMovement[102400]; // Bitboards for rook movement
+	uint64_t* rookMovement; // Bitboards for rook movement
 	int rookSquareOffset[64]; // Offset for each square in the rook movement array
 
 	uint64_t bishopOccupancyMask[64]; // Bitboards for bishop occupancy masks
-	uint64_t bishopMovement[5248]; // Bitboards for bishop movement
+	uint64_t* bishopMovement; // Bitboards for bishop movement
 	int bishopSquareOffset[64]; // Offset for each square in the bishop movement array
 
 	PieceType promotionPieceToPieceType[4]; // Get the corresponding piece type from an encoded promotion piece
@@ -121,7 +139,7 @@ private:
 	void decayHistoryTable(); // Scale down the values in the history heuristic (used to avoid overflow)
 	void updateHistoryTable(const Color color, const Move move, const int depth); // Update the history table for the given color, move and depth
 
-	Move killerMoves[MAX_DEPTH][2]; // Table that stores killer moves by ply
+	Move killerMoves[MAX_DEPTH + 1][2]; // Table that stores killer moves by ply
 	void updateKillerMoves(const Move move, const int ply); // Update the killer moves table
 	void clearKillerMoves(); // Clear the killer moves table
 
@@ -170,10 +188,18 @@ private:
 
 	int evaluate() const; // Compute an evaluation of the current state of the board. Positive values favour white, negative values favour black.
 	
-	int numberOfNodesVisited;
-	SearchResult minimax(int alpha, int beta, const int depth, const int ply); // Minimax algorithm with alpha beta pruning
 	int currentPly; // The ply the search is currently at
 	bool isAtRoot; // True if the search is at root level, false otherwise
+	int numberOfNodesVisited; // Number of nodes visited by the last search
+	int depthReached; // Depth reached by the last search
+	SearchResult minimax(int alpha, int beta, const int depth, const int ply); // Minimax algorithm with alpha beta pruning
+	int getTimeForSearch() const;
+
+	SearchResult search(const int depth); // Search for the best move of the active player by going to the given depth in the game tree
+	SearchResult iterativeDeepeningSearch(const int timeLimit); // Ssearch for the best move of the active player within the time limit (in milliseconds)
+	std::chrono::steady_clock::time_point searchStartTime; // The time the search started
+	int timeLimitInMilliseconds; // The time allocated to the search in milliseconds
+	bool stopSearch; // Flag set to true when the time limit is exceeded
 };
 
 constexpr int CHECKMATE_SCORE[2] = { SHRT_MIN, SHRT_MAX };

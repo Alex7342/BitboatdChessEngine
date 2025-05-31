@@ -8,13 +8,21 @@ ChessEngine::ChessEngine() {
     initializePositionSpecialStatistics();
     initializeZobristHash();
     initializeMoveOrderingTables();
+    initializeTimeLimits();
+
     this->transpositionTable = new TranspositionTableEntry[this->transpositionTableSize];
     this->activePlayer = Color::WHITE;
+
+    this->previousPositionsSize = 0;
+    this->previousPositions = new uint64_t[18000];
 }
 
 ChessEngine::~ChessEngine()
 {
     delete[] transpositionTable;
+    delete[] rookMovement;
+    delete[] bishopMovement;
+    delete[] previousPositions;
 }
 
 void ChessEngine::loadFENPosition(const std::string position)
@@ -26,9 +34,12 @@ void ChessEngine::loadFENPosition(const std::string position)
             pieces[color][type] = 0ULL;
     }
 
+    this->previousPositionsSize = 0;
+
     int square = 56;
 
-    for (int i = 0; i < position.size(); i++)
+    int i = 0;
+    for (i = 0; i < position.size() && position[i] != ' '; i++)
     {
         if ('a' <= position[i] && position[i] <= 'z')
         {
@@ -113,8 +124,129 @@ void ChessEngine::loadFENPosition(const std::string position)
         }
     }
 
+    // Skip all spaces
+    while (i < position.size() && position[i] == ' ')
+        i++;
+
+    // Get the active player
+    if (i < position.size())
+    {
+        if (position[i] == 'w')
+            this->activePlayer = Color::WHITE;
+        else if (position[i] == 'b')
+            this->activePlayer = Color::BLACK;
+        
+        i++;
+    }
+
+    // Skip all spaces
+    while (i < position.size() && position[i] == ' ')
+        i++;
+
+    // Get castling rights
+    if (i < position.size())
+    {
+        if (position[i] == '-')
+        {
+            this->castlingRights = 0;
+            i++;
+        }
+        else
+        {
+            this->castlingRights = 0;
+            while (i < position.size() && position[i] != ' ')
+            {
+                switch (position[i])
+                {
+                case 'K':
+                    this->castlingRights |= this->whiteCastleKingSide;
+                    break;
+                case 'Q':
+                    this->castlingRights |= this->whiteCastleQueenSide;
+                    break;
+                case 'k':
+                    this->castlingRights |= this->blackCastleKingSide;
+                    break;
+                case 'q':
+                    this->castlingRights |= this->blackCastleQueenSide;
+                    break;
+                }
+                i++;
+            }
+        }
+    }
+
+    // Skip all spaces
+    while (i < position.size() && position[i] == ' ')
+        i++;
+
+    // Get the en passant target square
+    if (i < position.size())
+    {
+        if (position[i] == '-')
+        {
+            this->enPassantTargetBitboard = 0ULL;
+            i++;
+        }
+        else
+        {
+            // Get the file
+            int file = position[i] - 'a';
+
+            // Get the rank
+            int rank = 0;
+            i++;
+            if (i < position.size())
+                rank = position[i] - '1';
+
+            int square = 8 * rank + file; // Get the square;
+            this->enPassantTargetBitboard = 1ULL << square; // Update the en passant target square
+
+            i++;
+        }
+    }
+
+    // Skip all spaces
+    while (i < position.size() && position[i] == ' ')
+        i++;
+
+    // Get the halfmove clock
+    int halfmoves = 0;
+    while (i < position.size() && '0' <= position[i] && position[i] <= '9')
+    {
+        halfmoves = halfmoves * 10 + position[i] - '0';
+        i++;
+    }
+    this->halfmoveClock = halfmoves;
+
+    // Skip all spaces
+    while (i < position.size() && position[i] == ' ')
+        i++;
+
+    // Get the halfmove clock
+    int fullmoves = 0;
+    while (i < position.size() && '0' <= position[i] && position[i] <= '9')
+    {
+        fullmoves = fullmoves * 10 + position[i] - '0';
+        i++;
+    }
+    this->fullmoveCounter = fullmoves;
+
     initializeSquarePieceTypeArray();
-    initializeMoveOrderingTables();
+
+    // Change the zobrist hash
+    this->boardZobristHash = 0ULL;
+
+    // Add pieces
+    for (int square = 0; square < 64; square++)
+        this->boardZobristHash ^= this->pieceZobristHash[squarePieceType[square]][square];
+
+    // Add castling rights
+    this->boardZobristHash ^= this->castlingRightsZobristHash[this->castlingRights];
+
+    // Add en passant square
+    if (this->enPassantTargetBitboard)
+        this->boardZobristHash ^= this->enPassantTargetSquareZobristHash[_tzcnt_u64(this->enPassantTargetBitboard)];
 }
 
 uint64_t ChessEngine::getAllPieces() const
@@ -170,7 +302,9 @@ void ChessEngine::initializePositionSpecialStatistics()
     // Initialize en passant target squares
     enPassantTargetBitboard = 0ULL;
 
-    // TODO Initialize 50 move rule, etc
+    // Initialize halfmove and full move counters
+    halfmoveClock = 0;
+    fullmoveCounter = 0;
 }
 
 void ChessEngine::initializeZobristHash()
@@ -243,16 +377,17 @@ void ChessEngine::updateHistoryTable(const Color color, const Move move, const i
 
 void ChessEngine::updateKillerMoves(const Move move, const int ply)
 {
-    if (move == this->killerMoves[ply][1])
-    {
-        this->killerMoves[ply][0] = move;
+    if (move == this->killerMoves[ply][0] || move == this->killerMoves[ply][1])
         return;
-    }
 
-    if (move != this->killerMoves[ply][0])
+    if (move != this->killerMoves[ply][0]) // Replace the first move in the table
     {
         this->killerMoves[ply][1] = this->killerMoves[ply][0];
         this->killerMoves[ply][0] = move;
+    }
+    else // Replace the second move in the table
+    {
+        this->killerMoves[ply][1] = move;
     }
 }
 
@@ -387,6 +522,7 @@ void ChessEngine::initializeRookOccupancyMasks()
 
 void ChessEngine::initializeRookMovesetBitboards()
 {
+    this->rookMovement = new uint64_t[102400];
     int rookMovementIndex = 0;
 
     for (int square = 0; square < 64; square++)
@@ -416,6 +552,7 @@ void ChessEngine::initializeBishopOccupancyMasks()
 
 void ChessEngine::initializeBishopMovesetBitboards()
 {
+    this->bishopMovement = new uint64_t[5248];
     int bishopMovementIndex = 0;
 
     for (int square = 0; square < 64; square++)
@@ -1103,14 +1240,14 @@ bool ChessEngine::compareMoves(const Move firstMove, const Move secondMove) cons
     else
     {
         // Use killer move heuristic
-        /*bool isFirstMoveKiller = (firstMove == killerMoves[currentPly][0] || firstMove == killerMoves[currentPly][1]);
+        bool isFirstMoveKiller = (firstMove == killerMoves[currentPly][0] || firstMove == killerMoves[currentPly][1]);
         bool isSecondMoveKiller = (secondMove == killerMoves[currentPly][0] || secondMove == killerMoves[currentPly][1]);
         if (isFirstMoveKiller && isSecondMoveKiller)
             return historyTable[activePlayer][firstMove.from()][firstMove.to()] > historyTable[activePlayer][secondMove.from()][secondMove.to()];
         if (isFirstMoveKiller)
             return true;
         if (isSecondMoveKiller)
-            return false;*/
+            return false;
 
         // Use history heuristic
         return historyTable[activePlayer][firstMove.from()][firstMove.to()] > historyTable[activePlayer][secondMove.from()][secondMove.to()];
@@ -1189,6 +1326,23 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
     {
         this->stopSearch = true;
         return SearchResult();
+    }
+
+    // 50 moves rule
+    if (!this->isAtRoot && this->halfmoveClock >= 50)
+        return SearchResult(0);
+
+    // Threefold repetition rule
+    if (!this->isAtRoot && this->halfmoveClock >= 8)
+    {
+        int repetitions = 0;
+        for (int start = std::max(0, this->previousPositionsSize - 1 - this->halfmoveClock), i = this->previousPositionsSize - 3; i >= start; i -= 2)
+            if (this->previousPositions[i] == this->boardZobristHash)
+            {
+                repetitions++;
+                if (repetitions == 2)
+                    return SearchResult(0);
+            }
     }
 
     const Color colorToMove = this->activePlayer;
@@ -1301,9 +1455,12 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                         // Store the result in the transposition table
                         transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
 
-                        // Update the history table for non capture moves
+                        // Update the killer and history tables for non capture moves
                         if (squarePieceType[moves.moves[i].to()] == PieceType::NONE)
+                        {
+                            updateKillerMoves(moves.moves[i], ply);
                             updateHistoryTable(colorToMove, moves.moves[i], depth);
+                        }
                     }
 
                     return result;
@@ -1367,9 +1524,12 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
                         // Store the result in the transposition table
                         transpositionTable[this->boardZobristHash & (this->transpositionTableSize - 1)] = TranspositionTableEntry(this->boardZobristHash, result.move, result.score, depth, NodeType::LOWER_BOUND);
 
-                        // Update the history table for non capture moves
+                        // Update the killer and history tables for non capture moves
                         if (squarePieceType[moves.moves[i].to()] == PieceType::NONE)
+                        {
+                            updateKillerMoves(moves.moves[i], ply);
                             updateHistoryTable(colorToMove, moves.moves[i], depth);
+                        }
                     }
 
                     return result;
@@ -1403,6 +1563,16 @@ ChessEngine::SearchResult ChessEngine::minimax(int alpha, int beta, const int de
     }
 }
 
+int ChessEngine::getTimeForSearch() const
+{
+    int timeForSearch = this->timeRemaining[this->activePlayer] / 40 + this->timeIncrement[this->activePlayer] / 2;
+
+    if (timeForSearch > this->timeRemaining[this->activePlayer])
+        return timeForSearch - this->timeRemaining[this->activePlayer];
+
+    return timeForSearch;
+}
+
 std::string ChessEngine::bitboardToString(const uint64_t bitboard) const {
     std::string board = "";
     for (int rank = 7; rank >= 0; --rank) {
@@ -1424,6 +1594,69 @@ std::string ChessEngine::getSquareNotation(const int square) const
     int rank = 1 + (square / 8);    // Get rank (row) from 1 to 8
 
     return std::string(1, file) + std::to_string(rank);
+}
+
+Move ChessEngine::getMoveFromString(const std::string moveString) const
+{
+    // Check string size
+    if (moveString.size() < 4 || moveString.size() > 5)
+        throw std::invalid_argument("The given string does not resprect UCI rules (String too short or too long).");
+
+    // Check files
+    if (!('a' <= moveString[0] && moveString[0] <= 'h') || !('a' <= moveString[2] && moveString[2] <= 'h'))
+        throw std::invalid_argument("The given string does not resprect UCI rules (Files not represented correctly).");
+
+    // Check ranks
+    if (!('1' <= moveString[1] && moveString[1] <= '9') || !('1' <= moveString[3] && moveString[3] <= '9'))
+        throw std::invalid_argument("The given string does not resprect UCI rules (Ranks not represented correctly).");
+
+    // Check promotion type
+    if (moveString.size() == 5 && (moveString[4] != 'q' && moveString[4] != 'n' && moveString[4] != 'r' && moveString[4] != 'b'))
+        throw std::invalid_argument("The given string does not resprect UCI rules (Promotion type not represented correctly).");
+
+    int fromRank = moveString[1] - '1';
+    int fromFile = moveString[0] - 'a';
+    int fromSquare = 8 * fromRank + fromFile;
+
+    int toRank = moveString[3] - '1';
+    int toFile = moveString[2] - 'a';
+    int toSquare = 8 * toRank + toFile;
+
+    if (moveString.size() == 4) // Normal move
+    {
+        Move::MoveType movetype = Move::MoveType::NORMAL;
+
+        // Check if the move is a castle
+        if (this->squarePieceType[fromSquare] == PieceType::KING && this->squaresBetween[fromSquare][toSquare])
+            movetype = Move::MoveType::CASTLE;
+
+        // Check if the move is an en passant
+        if (this->squarePieceType[fromSquare] == PieceType::PAWN && ((1ULL << toSquare) & this->enPassantTargetBitboard) != 0ULL)
+            movetype = Move::MoveType::EN_PASSANT;
+
+        return Move(fromSquare, toSquare, movetype);
+    }
+    else if (moveString.size() == 5) // Promotion move
+    {
+        Move::PromotionPiece promotion = Move::PromotionPiece::QUEEN;
+        switch (moveString[4])
+        {
+        case 'q':
+            promotion = Move::PromotionPiece::QUEEN;
+            break;
+        case 'n':
+            promotion = Move::PromotionPiece::KNIGHT;
+            break;
+        case 'r':
+            promotion = Move::PromotionPiece::ROOK;
+            break;
+        case 'b':
+            promotion = Move::PromotionPiece::BISHOP;
+            break;
+        }
+
+        return Move(fromSquare, toSquare, Move::MoveType::PROMOTION, promotion);
+    }
 }
 
 MoveList ChessEngine::getPseudolegalMoves() const
@@ -1459,9 +1692,16 @@ MoveList ChessEngine::getLegalMoves()
 
 void ChessEngine::makeMove(const Move move)
 {
+    // Update the fullmove counter
+    if (this->activePlayer == Color::BLACK)
+        this->fullmoveCounter++;
+
     if (move.isNull()) // Make a null move
     {
-        undoStack.push(UndoHelper(0, 0, castlingRights, enPassantTargetBitboard));
+        undoStack.push(UndoHelper(0, 0, castlingRights, enPassantTargetBitboard, halfmoveClock));
+
+        // Update the halfmove clock
+        this->halfmoveClock++;
         
         // Update zobrist hash for en passant target square
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
@@ -1471,6 +1711,10 @@ void ChessEngine::makeMove(const Move move)
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
+
+        // Store the zobrist hash of the position in the previous positions array
+        this->previousPositions[this->previousPositionsSize] = this->boardZobristHash;
+        this->previousPositionsSize++;
 
         return;
     }
@@ -1500,12 +1744,15 @@ void ChessEngine::makeMove(const Move move)
         PieceType capturedPieceType = squarePieceType[toSquare];
         
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, capturedPieceType));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, halfmoveClock, moveType, capturedPieceType));
 
         // Update zobrist hash for en passant target square
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
+
+        // Update the halfmove clock
+        halfmoveClock++;
 
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE)
@@ -1542,6 +1789,9 @@ void ChessEngine::makeMove(const Move move)
                     break;
                 }
             }
+
+            // Reset the halfmove clock on a capture
+            this->halfmoveClock = 0;
         }
 
         // Update the array that stores piece types for each square
@@ -1591,16 +1841,26 @@ void ChessEngine::makeMove(const Move move)
             }
         }
         // Update en passant square if a pawn makes a double push
-        else if (movingPieceType == PAWN && squaresBetween[fromSquare][toSquare])
+        else if (movingPieceType == PAWN)
         {
-            if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
-            enPassantTargetBitboard = squaresBetween[fromSquare][toSquare];
-            if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+            if (squaresBetween[fromSquare][toSquare])
+            {
+                if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+                enPassantTargetBitboard = squaresBetween[fromSquare][toSquare];
+                if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+            }
+
+            // Reset the halfmove clock on a pawn move
+            this->halfmoveClock = 0;
         }
 
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
+
+        // Store the zobrist hash of the position in the previous positions array
+        this->previousPositions[this->previousPositionsSize] = this->boardZobristHash;
+        this->previousPositionsSize++;
 
         return;
     }
@@ -1623,12 +1883,15 @@ void ChessEngine::makeMove(const Move move)
         PieceType capturedPieceType = squarePieceType[toSquare];
 
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, capturedPieceType));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, halfmoveClock, moveType, capturedPieceType));
 
         // Update zobrist hash for en passant target square
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
+
+        // Reset the halfmove clock on a pawn promotion
+        halfmoveClock = 0;
 
         // Capture the enemy piece
         if (capturedPieceType != PieceType::NONE)
@@ -1675,18 +1938,25 @@ void ChessEngine::makeMove(const Move move)
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
 
+        // Store the zobrist hash of the position in the previous positions array
+        this->previousPositions[this->previousPositionsSize] = this->boardZobristHash;
+        this->previousPositionsSize++;
+
         return;
     }
 
     if (moveType == Move::MoveType::CASTLE)
     {
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, PieceType::NONE));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, halfmoveClock, moveType, PieceType::NONE));
 
         // Update zobrist hash for en passant target square
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
+
+        // Update the halfmove clock
+        halfmoveClock++;
 
         uint8_t rookToSquare = 0, rookFromSquare = 0;
         uint64_t rookToSquareMask = 0, rookFromSquareMask = 0;
@@ -1755,6 +2025,10 @@ void ChessEngine::makeMove(const Move move)
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
 
+        // Store the zobrist hash of the position in the previous positions array
+        this->previousPositions[this->previousPositionsSize] = this->boardZobristHash;
+        this->previousPositionsSize++;
+
         return;
     }
 
@@ -1770,12 +2044,15 @@ void ChessEngine::makeMove(const Move move)
         boardZobristHash ^= pieceZobristHash[PAWN][toSquare];
 
         // Push the changes to the undo stack
-        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, moveType, PieceType::PAWN));
+        undoStack.push(UndoHelper(fromSquare, toSquare, castlingRights, enPassantTargetBitboard, halfmoveClock, moveType, PieceType::PAWN));
 
         // Update zobrist hash for en passant target square
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         // Empty the en passant target bitboard
         enPassantTargetBitboard = 0ULL;
+
+        // Reset the halfmove clock on an en passant move
+        halfmoveClock = 0;
 
         // Compute the captured pawn coordinates
         int capturedPawnSquare = 0;
@@ -1808,6 +2085,10 @@ void ChessEngine::makeMove(const Move move)
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
 
+        // Store the zobrist hash of the position in the previous positions array
+        this->previousPositions[this->previousPositionsSize] = this->boardZobristHash;
+        this->previousPositionsSize++;
+
         return;
     }
 }
@@ -1816,6 +2097,13 @@ void ChessEngine::undoMove()
 {
     // Get the color of the player that made the last move
     const Color colorThatMoved = static_cast<Color>(this->activePlayer ^ 1);
+
+    // Remove the current zobrist hash from the previous positions array
+    this->previousPositionsSize--;
+
+    // Update the fullmove counter
+    if (colorThatMoved == Color::BLACK)
+        this->fullmoveCounter--;
 
     // Get last move information
     UndoHelper undoHelper = undoStack.top();
@@ -1831,6 +2119,9 @@ void ChessEngine::undoMove()
     if (toSquare == 0 && fromSquare == 0) // Null move
     {
         // Castling rights are not affected by null moves
+
+        // Restore the previous halfmove clock
+        this->halfmoveClock = undoHelper.halfmoveClock();
 
         // Restore the previous en passant target bitboard
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
@@ -1885,6 +2176,9 @@ void ChessEngine::undoMove()
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
+        // Restore the previous halfmove clock
+        this->halfmoveClock = undoHelper.halfmoveClock();
+
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
@@ -1932,6 +2226,9 @@ void ChessEngine::undoMove()
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
+
+        // Restore the previous halfmove clock
+        this->halfmoveClock = undoHelper.halfmoveClock();
 
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
@@ -2003,6 +2300,9 @@ void ChessEngine::undoMove()
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
+        // Restore the previous halfmove clock
+        this->halfmoveClock = undoHelper.halfmoveClock();
+
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
@@ -2058,6 +2358,9 @@ void ChessEngine::undoMove()
         enPassantTargetBitboard = undoHelper.enPassantBitboard();
         if (enPassantTargetBitboard) boardZobristHash ^= enPassantTargetSquareZobristHash[_tzcnt_u64(enPassantTargetBitboard)];
 
+        // Restore the previous halfmove clock
+        this->halfmoveClock = undoHelper.halfmoveClock();
+
         // Change the active player
         this->activePlayer = static_cast<Color>(this->activePlayer ^ 1);
         this->boardZobristHash ^= this->changePlayerZobristHash;
@@ -2102,6 +2405,51 @@ unsigned long long ChessEngine::perft(const int depth)
     return result;
 }
 
+ChessEngine::SearchResult ChessEngine::getBestMove()
+{
+    return this->iterativeDeepeningSearch(this->getTimeForSearch());
+}
+
+void ChessEngine::stopCurrentSearch()
+{
+    this->stopSearch = true;
+}
+
+void ChessEngine::clearTranspositionTable()
+{
+    for (int i = 0; i < this->transpositionTableSize; i++)
+        transpositionTable[i] = TranspositionTableEntry();
+}
+
+void ChessEngine::clearMoveOrderingTables()
+{
+    this->maxHistoryValueReached = false;
+    for (int color = 0; color < 2; color++)
+        for (int from = 0; from < 64; from++)
+            for (int to = 0; to < 64; to++)
+                this->historyTable[color][from][to] = 0;
+}
+
+void ChessEngine::setWhiteTime(const int timeInMilliseconds)
+{
+    this->timeRemaining[WHITE] = timeInMilliseconds;
+}
+
+void ChessEngine::setBlackTime(const int timeInMilliseconds)
+{
+    this->timeRemaining[BLACK] = timeInMilliseconds;
+}
+
+void ChessEngine::setWhiteIncrement(const int incrementInMilliseconds)
+{
+    this->timeIncrement[WHITE] = incrementInMilliseconds;
+}
+
+void ChessEngine::setBlackIncrement(const int incrementInMilliseconds)
+{
+    this->timeIncrement[BLACK] = incrementInMilliseconds;
+}
+
 ChessEngine::SearchResult ChessEngine::search(const int depth)
 {
     //return negamax(INT_MIN, INT_MAX, depth, colorToMove);
@@ -2130,23 +2478,60 @@ ChessEngine::SearchResult ChessEngine::iterativeDeepeningSearch(const int timeLi
         SearchResult result = this->minimax(INT_MIN, INT_MAX, depth, 1);
         auto stop = std::chrono::high_resolution_clock::now();
 
-        if (!this->stopSearch)
+        /*if (!this->stopSearch)
         {
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+            auto searchTimeLeft = timeLimit - std::chrono::duration_cast<std::chrono::milliseconds>(stop - this->searchStartTime).count();
+
             std::cout << "Depth " << depth << " reached in " << duration << "ms. Nodes searched: " <<
                 numberOfNodesVisited << ". Branching factor: " << 1.0 * numberOfNodesVisited / oldNumberOfNodesVisited << " |" <<
-                " Move: " << result.move.toString() << ", Evaluation: " << result.score << "\n";
+                " Move: " << result.move.toString() << ", Evaluation: " << result.score << ", Time left: " << searchTimeLeft << "\n";
+
             oldNumberOfNodesVisited = numberOfNodesVisited;
-        }
+        }*/
 
         if (!this->stopSearch)
+        {
             bestMove = result;
+            this->depthReached = depth;
+        }
+
+        auto searchDuration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+        auto searchTimeLeft = timeLimit - std::chrono::duration_cast<std::chrono::milliseconds>(stop - this->searchStartTime).count();
+        if (searchTimeLeft < searchDuration * 2)
+        {
+            this->timeRemaining[this->activePlayer] -= (timeLimit - searchTimeLeft);
+            return bestMove;
+        }
     }
 
+    this->timeRemaining[this->activePlayer] -= timeLimit;
+
     return bestMove;
+}
+
+int ChessEngine::getNumberOfNodesVisited() const
+{
+    return this->numberOfNodesVisited;
+}
+
+int ChessEngine::getDepthReached() const
+{
+    return this->depthReached;
+}
+
+int ChessEngine::getTimeUsed() const
+{
+    return this->timeLimitInMilliseconds;
 }
 
 uint64_t ChessEngine::getZobristHash() const
 {
     return this->boardZobristHash;
+}
+
+void ChessEngine::initializeTimeLimits()
+{
+    this->timeRemaining[WHITE] = this->timeRemaining[BLACK] = 60000 * 10;
+    this->timeIncrement[WHITE] = this->timeIncrement[BLACK] = 100;
 }
